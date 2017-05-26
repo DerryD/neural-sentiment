@@ -78,7 +78,7 @@ def load_model(session, vocab_size):
         hyper_params = pickle.load(hp)
     # hyper_params = read_config_file()
     model = models.sentiment.SentimentModel(vocab_size=vocab_size,
-                                            hidden_size=hyper_params["hidden_size"],
+                                            embedding_dims=hyper_params["hidden_size"],
                                             dropout=1.0,
                                             num_layers=hyper_params["num_layers"],
                                             max_gradient_norm=hyper_params["grad_clip"],

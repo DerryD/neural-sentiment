@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 export PYTHONPATH="/home/dairui/workspace/neural-sentiment/:$PYTHONPATH"
+tensorboard --logdir=/tmp/tb_logs
 """
 import tensorflow as tf
 from tensorflow.python.platform import gfile
@@ -20,8 +21,8 @@ logging.basicConfig(
     format='%(asctime)s : %(levelname)s : %(message)s',
     level=logging.INFO
 )
-tf.logging.set_verbosity(tf.logging.WARN)
-
+# tf.logging.set_verbosity(tf.logging.WARN)
+tf.logging.set_verbosity(tf.logging.ERROR)
 # Defaults for network parameters
 flags = tf.app.flags
 FLAGS = flags.FLAGS
@@ -132,7 +133,7 @@ def main():
 def create_model(session, hyper_params, vocab_size):
     model = SentimentModel(
         vocab_size=vocab_size,
-        hidden_size=hyper_params["hidden_size"],
+        embedding_dims=hyper_params["hidden_size"],
         dropout=hyper_params["dropout"],
         num_layers=hyper_params["num_layers"],
         max_gradient_norm=hyper_params["grad_clip"],

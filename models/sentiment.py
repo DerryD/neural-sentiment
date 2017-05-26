@@ -16,7 +16,7 @@ class SentimentModel(object):
     is_training: whether to run backward pass or not
     """
 
-    def __init__(self, vocab_size, hidden_size, dropout,
+    def __init__(self, vocab_size, embedding_dims, dropout,
                  num_layers, max_gradient_norm, max_seq_length,
                  learning_rate, batch_size, is_training=True):
         self.num_classes = 2
@@ -31,7 +31,6 @@ class SentimentModel(object):
         self.seq_input = []
         self.batch_size = batch_size
         self.seq_lengths = []
-        self.projection_dim = hidden_size
         self.max_gradient_norm = max_gradient_norm
         self.global_step = tf.Variable(0, trainable=False)
         self.max_seq_length = max_seq_length
@@ -65,7 +64,7 @@ class SentimentModel(object):
 
         with tf.variable_scope("embedding"), tf.device("/cpu:0"):
             # noinspection PyPep8Naming
-            W = tf.get_variable("W", [self.vocab_size, hidden_size],
+            W = tf.get_variable("W", [self.vocab_size, embedding_dims],
                                 initializer=initializer)
             embedded_tokens = tf.nn.embedding_lookup(W, self.seq_input)
             embedded_tokens_drop = tf.nn.dropout(
@@ -77,7 +76,7 @@ class SentimentModel(object):
         with tf.variable_scope("lstm"):
             def lstm_cell():
                 return tf.contrib.rnn.LSTMCell(
-                    hidden_size,
+                    embedding_dims,
                     initializer=initializer,
                     state_is_tuple=True,
                     reuse=tf.get_variable_scope().reuse)
@@ -105,7 +104,7 @@ class SentimentModel(object):
 
         with tf.variable_scope("output_projection"):
             # noinspection PyPep8Naming
-            W = tf.get_variable("W", [hidden_size, self.num_classes],
+            W = tf.get_variable("W", [embedding_dims, self.num_classes],
                                 initializer=tf.truncated_normal_initializer(stddev=0.1))
             b = tf.get_variable("b", [self.num_classes],
                                 initializer=tf.constant_initializer(0.1))
@@ -187,7 +186,6 @@ class SentimentModel(object):
         self.train_data = data[train_start_end_index[0]: train_start_end_index[1]]
         self.test_data = data[test_start_end_index[0]:test_start_end_index[1]]
         self.test_num_batch = len(self.test_data) / self.batch_size
-
         num_train_batches = len(self.train_data) / self.batch_size
         num_test_batches = len(self.test_data) / self.batch_size
         train_cutoff = len(self.train_data) - (len(self.train_data) % self.batch_size)
