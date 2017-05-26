@@ -14,6 +14,11 @@ url = "http://ai.stanford.edu/~amaas/data/sentiment/aclImdb_v1.tar.gz"
 
 
 def build_data(max_seq_length, max_vocab_size):
+    if os.path.exists("data/vocab.pkl"):
+        print "vocab mapping found..."
+    else:
+        print "no vocab mapping found, running preprocessor..."
+        create_vocab(dirs, max_vocab_size)
     if os.path.exists("data/processed"):
         return
     if not os.path.exists("data/"):
@@ -28,11 +33,6 @@ def build_data(max_seq_length, max_vocab_size):
         print "Extracting dataset..."
         tar_file.extractall('data/')
         tar_file.close()
-    if os.path.exists("data/vocab.pkl"):
-        print "vocab mapping found..."
-    else:
-        print "no vocab mapping found, running preprocessor..."
-        create_vocab(dirs, max_vocab_size)
     os.makedirs("data/processed/")
     print "No processed data file found, running preprocessor..."
     vocab = VocabMapping()
