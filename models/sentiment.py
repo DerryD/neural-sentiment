@@ -16,24 +16,20 @@ class SentimentModel(object):
     is_training: whether to run backward pass or not
     """
 
-    def __init__(self, vocab_size, embedding_dims, dropout,
-                 num_layers, max_gradient_norm, max_seq_length,
-                 learning_rate, batch_size, is_training=True):
+    def __init__(self, config, is_training=True):
         self.num_classes = 2
-        self.dropout = dropout
-        self.vocab_size = vocab_size
-        self.learning_rate = tf.Variable(float(learning_rate), trainable=False)
+        self.dropout = config.keep_prob
+        self.vocab_size = config.vocab_size
+        self.learning_rate = tf.Variable(config.learning_rate, trainable=False)
         self._new_lr = tf.placeholder(
             tf.float32, shape=[], name="new_learning_rate")
         self._lr_update = tf.assign(self.learning_rate, self._new_lr)
         initializer = tf.random_uniform_initializer(-1, 1)
         self.batch_pointer = 0
-        self.seq_input = []
-        self.batch_size = batch_size
-        self.seq_lengths = []
-        self.max_gradient_norm = max_gradient_norm
+        self.batch_size = config.batch_size
+        self.max_grad_norm = config.max_grad_norm
         self.global_step = tf.Variable(0, trainable=False)
-        self.max_seq_length = max_seq_length
+        self.max_seq_length = config.max_seq_len
         self.test_num_batch = None
         self.train_sequence_lengths = None
         self.test_sequence_lengths = None
@@ -49,26 +45,19 @@ class SentimentModel(object):
         # seq_lengths:the early stop lengths of each input tensor
         self.str_summary_type = tf.placeholder(tf.string, name="str_summary_type")
         self.seq_input = tf.placeholder(
-            tf.int32, shape=[None, max_seq_length], name="input")
+            tf.int32, shape=[None, config.max_seq_len], name="input")
         self.target = tf.placeholder(
             tf.float32, name="target", shape=[None, self.num_classes])
         self.seq_lengths = tf.placeholder(tf.int32, shape=[None],
                                           name="early_stop")
 
-        self.dropout_keep_prob_embedding = tf.placeholder(
-            tf.float32, name="dropout_keep_prob_embedding")
-        self.dropout_keep_prob_lstm_input = tf.placeholder(
-            tf.float32, name="dropout_keep_prob_lstm_input")
-        self.dropout_keep_prob_lstm_output = tf.placeholder(
-            tf.float32, name="dropout_keep_prob_lstm_output")
-
         with tf.variable_scope("embedding"), tf.device("/cpu:0"):
             # noinspection PyPep8Naming
-            W = tf.get_variable("W", [self.vocab_size, embedding_dims],
+            W = tf.get_variable("W", [self.vocab_size, config.embedding_dims],
                                 initializer=initializer)
             embedded_tokens = tf.nn.embedding_lookup(W, self.seq_input)
             embedded_tokens_drop = tf.nn.dropout(
-                embedded_tokens, self.dropout_keep_prob_embedding)
+                embedded_tokens, config.keep_prob)
 
         rnn_input = [embedded_tokens_drop[:, i, :] for i in range(self.max_seq_length)]
         # rnn_input = tf.unstack(embedded_tokens_drop, num=self.max_seq_length, axis=1)
@@ -76,7 +65,7 @@ class SentimentModel(object):
         with tf.variable_scope("lstm"):
             def lstm_cell():
                 return tf.contrib.rnn.LSTMCell(
-                    embedding_dims,
+                    config.embedding_dims,
                     initializer=initializer,
                     state_is_tuple=True,
                     reuse=tf.get_variable_scope().reuse)
@@ -85,14 +74,13 @@ class SentimentModel(object):
                 def attn_cell():
                     return tf.contrib.rnn.DropoutWrapper(
                         lstm_cell(),
-                        input_keep_prob=self.dropout_keep_prob_lstm_input,
-                        output_keep_prob=self.dropout_keep_prob_lstm_output
+                        output_keep_prob=config.keep_prob
                     )
             else:
                 attn_cell = lstm_cell
 
             cell = tf.contrib.rnn.MultiRNNCell(
-                [attn_cell() for _ in range(num_layers)], state_is_tuple=True)
+                [attn_cell() for _ in range(config.num_layers)], state_is_tuple=True)
 
             initial_state = cell.zero_state(self.batch_size, tf.float32)
             rnn_output, rnn_state = tf.contrib.rnn.static_rnn(
@@ -104,7 +92,7 @@ class SentimentModel(object):
 
         with tf.variable_scope("output_projection"):
             # noinspection PyPep8Naming
-            W = tf.get_variable("W", [embedding_dims, self.num_classes],
+            W = tf.get_variable("W", [config.embedding_dims, self.num_classes],
                                 initializer=tf.truncated_normal_initializer(stddev=0.1))
             b = tf.get_variable("b", [self.num_classes],
                                 initializer=tf.constant_initializer(0.1))
@@ -131,7 +119,7 @@ class SentimentModel(object):
                 opt = tf.train.AdamOptimizer(self.learning_rate)
             gradients = tf.gradients(self.losses, params)
             clipped_gradients, norm = tf.clip_by_global_norm(
-                gradients, self.max_gradient_norm)
+                gradients, self.max_grad_norm)
             with tf.name_scope("grad_norms"):
                 tf.summary.scalar("grad_norms", norm)
             self.update = opt.apply_gradients(zip(
@@ -196,7 +184,7 @@ class SentimentModel(object):
         self.train_sequence_lengths = \
             sequence_lengths[train_start_end_index[0]: train_start_end_index[1]][:train_cutoff]
         self.train_sequence_lengths = np.split(self.train_sequence_lengths, num_train_batches)
-        self.train_targets = one_hot[train_start_end_index[0]:train_start_end_index[1]][:train_cutoff]
+        self.train_targets = one_hot[train_start_end_index[0]: train_start_end_index[1]][:train_cutoff]
         self.train_targets = np.split(self.train_targets, num_train_batches)
         self.train_data = np.split(self.train_data, num_train_batches)
 
@@ -225,10 +213,7 @@ class SentimentModel(object):
         input_feed = {
             self.seq_input.name: inputs,
             self.target.name: targets,
-            self.seq_lengths.name: seq_lengths,
-            self.dropout_keep_prob_embedding.name: self.dropout,
-            self.dropout_keep_prob_lstm_input.name: self.dropout,
-            self.dropout_keep_prob_lstm_output.name: self.dropout
+            self.seq_lengths.name: seq_lengths
         }
         if is_training:
             input_feed[self.str_summary_type.name] = "train"

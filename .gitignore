@@ -1,3 +1,4 @@
 lstm-sent
 *.pyc
 .idea/
+config.ini

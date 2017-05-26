@@ -28,7 +28,7 @@ def build_data(max_seq_length, max_vocab_size):
         print "Extracting dataset..."
         tar_file.extractall('data/')
         tar_file.close()
-    if os.path.exists("data/vocab.txt"):
+    if os.path.exists("data/vocab.pkl"):
         print "vocab mapping found..."
     else:
         print "no vocab mapping found, running preprocessor..."
@@ -167,11 +167,11 @@ def create_vocab(dir_list, max_vocab_size):
         d[w] = counter
         counter += 1
         # take most frequent 50k tokens
-        if counter >= max_vocab_size:
+        if counter >= max_vocab_size - 2:
             break
     # add out of vocab token and pad token
     d["<UNK>"] = counter
     counter += 1
     d["<PAD>"] = counter
-    with open('data/vocab.txt', 'wb') as handle:
+    with open('data/vocab.pkl', 'wb') as handle:
         pickle.dump(d, handle)

@@ -3,16 +3,14 @@
 export PYTHONPATH="/home/dairui/workspace/neural-sentiment/:$PYTHONPATH"
 tensorboard --logdir=/tmp/tb_logs
 """
-import tensorflow as tf
-from tensorflow.python.platform import gfile
 from six.moves import xrange
 import numpy as np
 import sys
 import os
-import ConfigParser
 import time
+import tensorflow as tf
 from utils.data_processor import build_data
-from utils.hyperparams import HyperParameterHandler
+from utils.config import Config
 from models.sentiment import SentimentModel
 from utils.vocab_mapping import VocabMapping
 import logging
@@ -21,8 +19,8 @@ logging.basicConfig(
     format='%(asctime)s : %(levelname)s : %(message)s',
     level=logging.INFO
 )
-# tf.logging.set_verbosity(tf.logging.WARN)
 tf.logging.set_verbosity(tf.logging.ERROR)
+
 # Defaults for network parameters
 flags = tf.app.flags
 FLAGS = flags.FLAGS
@@ -30,20 +28,17 @@ flags.DEFINE_string("config_file", "config.ini",
                     "Path to configuration file with hyper-parameters.")
 flags.DEFINE_string("data_dir", "data/",
                     "Path to main data directory.")
-flags.DEFINE_string("checkpoint_dir", "data/checkpoints/",
-                    "Directory to store/restore checkpoints")
 
 
 def main():
-    hyper_params = check_get_hyper_param_dic()
-    build_data(hyper_params["max_seq_length"],
-               hyper_params["max_vocab_size"])
+    config = Config()
+    build_data(config.max_seq_len,
+               config.vocab_size)
 
     # create model
-    print "Creating model with:"
-    print "\tNumber of hidden layers: {0}".format(hyper_params["num_layers"])
-    print "\tNumber of units per layer: {0}".format(hyper_params["hidden_size"])
-    print "\tDropout: {0}".format(hyper_params["dropout"])
+    logging.info('Creating model with:\n\tNumber of hidden layers: %d\n'
+                 '\tNumber of units per layer: %d\n\tDropout: %f' % (
+                    config.num_layers, config.embedding_dims, config.keep_prob))
     vocab_mapping = VocabMapping()
     vocab_size = vocab_mapping.get_size()
     print "Vocab size is: {0}".format(vocab_size)
@@ -55,30 +50,32 @@ def main():
     np.random.shuffle(data)
     # data = data[:10000]
     logging.info('Shape of data: %s' % str(data.shape))
-    num_batches = len(data) / hyper_params["batch_size"]
+    num_batches = len(data) / config.batch_size
     # 70/30 split for train/test
-    train_start_end_index = [0, int(hyper_params["train_frac"] * len(data))]
-    test_start_end_index = [int(hyper_params["train_frac"] * len(data)) + 1, len(data) - 1]
+    train_start_end_index = [0, int(0.7 * len(data))]
+    test_start_end_index = [int(0.7 * len(data)) + 1, len(data) - 1]
     print "Number of training examples per batch: {0}, \
-    \nNumber of batches per epoch: {1}".format(hyper_params["batch_size"], num_batches)
+    \nNumber of batches per epoch: {1}".format(config.batch_size, num_batches)
     with tf.Session() as sess:
         writer = tf.summary.FileWriter("/tmp/tb_logs", sess.graph)
         print 'creating model...'
-        model = create_model(sess, hyper_params, vocab_size)
-        learning_rate = hyper_params["learning_rate"]
-        lr_decay = hyper_params["lr_decay_factor"]
+        model = SentimentModel(config)
+        sess.run(tf.global_variables_initializer())
+        # model = create_model(config, sess)
+        learning_rate = config.learning_rate
+        lr_decay = config.lr_decay
         print 'model creation completed.'
         # train model and save to checkpoint
         print "Training started..."
-        print "Maximum number of epochs to train for: {0}".format(hyper_params["max_epoch"])
-        print "Batch size: {0}".format(hyper_params["batch_size"])
-        print "Starting learning rate: {0}".format(hyper_params["learning_rate"])
-        print "Learning rate decay factor: {0}".format(hyper_params["lr_decay_factor"])
+        print "Maximum number of epochs to train for: {0}".format(config.max_epoch)
+        print "Batch size: {0}".format(config.batch_size)
+        print "Starting learning rate: {0}".format(config.learning_rate)
+        print "Learning rate decay factor: {0}".format(config.lr_decay)
 
         step_time, loss = 0.0, 0.0
         previous_losses = []
         # Total number of batches to pass through.
-        tot_steps = num_batches * hyper_params["max_epoch"]
+        tot_steps = num_batches * config.max_epoch
         model.init_data(data, train_start_end_index, test_start_end_index)
         # starting at step 1 to prevent test set from running after first batch
         for step in xrange(1, tot_steps):
@@ -87,12 +84,12 @@ def main():
 
             inputs, targets, seq_lengths = model.get_batch()
             str_summary, step_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
-
-            step_time += (time.time() - start_time) / hyper_params["steps_per_checkpoint"]
-            loss += step_loss / hyper_params["steps_per_checkpoint"]
+            steps_per_checkpoint = 100
+            step_time += (time.time() - start_time) / steps_per_checkpoint
+            loss += step_loss / steps_per_checkpoint
 
             # Once in a while, we save checkpoint, print statistics, and run evals.
-            if step % hyper_params["steps_per_checkpoint"] == 0:
+            if step % steps_per_checkpoint == 0:
                 writer.add_summary(str_summary, step)
                 # Print statistics for the previous epoch.
                 print ("global step %d learning rate %.7f step-time %.2f loss %.4f"
@@ -116,100 +113,12 @@ def main():
                     test_accuracy += accuracy
                 normalized_test_loss, normalized_test_accuracy = loss / len(
                     model.test_data), test_accuracy / len(model.test_data)
-                checkpoint_path = os.path.join(
-                    FLAGS.checkpoint_dir,
-                    "sentiment{0}.ckpt".format(normalized_test_accuracy))
-                model.saver.save(
-                    sess, checkpoint_path,
-                    global_step=model.global_step)
                 writer.add_summary(str_summary, step)
                 print "Avg Test Loss: {0}, Avg Test Accuracy: {1}".format(
                     normalized_test_loss, normalized_test_accuracy)
                 print "-------Step {0}/{1}------".format(step, tot_steps)
                 loss = 0.0
                 sys.stdout.flush()
-
-
-def create_model(session, hyper_params, vocab_size):
-    model = SentimentModel(
-        vocab_size=vocab_size,
-        embedding_dims=hyper_params["hidden_size"],
-        dropout=hyper_params["dropout"],
-        num_layers=hyper_params["num_layers"],
-        max_gradient_norm=hyper_params["grad_clip"],
-        max_seq_length=hyper_params["max_seq_length"],
-        learning_rate=hyper_params["learning_rate"],
-        batch_size=hyper_params["batch_size"]
-    )
-    ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
-    if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
-        print "Reading model parameters from {0}".format(ckpt.model_checkpoint_path)
-        model.saver.restore(session, ckpt.model_checkpoint_path)
-    else:
-        print "Created model with fresh parameters."
-        session.run(tf.global_variables_initializer())
-    return model
-
-
-def read_config_file():
-    """
-    Reads in config file, returns dictionary of network params
-    """
-    config = ConfigParser.ConfigParser()
-    config.read(FLAGS.config_file)
-    dic = {}
-    sentiment_section = "sentiment_network_params"
-    general_section = "general"
-    dic["num_layers"] = config.getint(sentiment_section, "num_layers")
-    dic["hidden_size"] = config.getint(sentiment_section, "hidden_size")
-    dic["dropout"] = config.getfloat(sentiment_section, "dropout")
-    dic["batch_size"] = config.getint(sentiment_section, "batch_size")
-    dic["train_frac"] = config.getfloat(sentiment_section, "train_frac")
-    dic["learning_rate"] = config.getfloat(sentiment_section, "learning_rate")
-    dic["lr_decay_factor"] = config.getfloat(sentiment_section, "lr_decay_factor")
-    dic["grad_clip"] = config.getint(sentiment_section, "grad_clip")
-    dic["use_config_file_if_checkpoint_exists"] = config.getboolean(
-        general_section, "use_config_file_if_checkpoint_exists")
-    dic["max_epoch"] = config.getint(sentiment_section, "max_epoch")
-    dic["max_vocab_size"] = config.getint(sentiment_section, "max_vocab_size")
-    dic["max_seq_length"] = config.getint(general_section,
-                                          "max_seq_length")
-    dic["steps_per_checkpoint"] = config.getint(general_section,
-                                                "steps_per_checkpoint")
-    return dic
-
-
-def check_get_hyper_param_dic():
-    """
-    Retrieves hyper parameter information from either config file or checkpoint
-    """
-    if not os.path.exists(FLAGS.checkpoint_dir):
-        os.makedirs(FLAGS.checkpoint_dir)
-    serializer = HyperParameterHandler(FLAGS.checkpoint_dir)
-    hyper_params = read_config_file()
-    if serializer.check_exists():
-        if serializer.check_changed(hyper_params):
-            if not hyper_params["use_config_file_if_checkpoint_exists"]:
-                hyper_params = serializer.get_params()
-                print "Restoring hyper params from previous checkpoint..."
-            else:
-                new_checkpoint_dir = "{0}_hidden_size_{1}_numlayers_{2}_dropout_{3}".format(
-                    int(time.time()),
-                    hyper_params["hidden_size"],
-                    hyper_params["num_layers"],
-                    hyper_params["dropout"])
-                new_checkpoint_dir = os.path.join(FLAGS.checkpoint_dir,
-                                                  new_checkpoint_dir)
-                os.makedirs(new_checkpoint_dir)
-                FLAGS.checkpoint_dir = new_checkpoint_dir
-                serializer = HyperParameterHandler(FLAGS.checkpoint_dir)
-                serializer.save_params(hyper_params)
-        else:
-            print "No hyper parameter changed detected, using old checkpoint..."
-    else:
-        serializer.save_params(hyper_params)
-        print "No hyper params detected at checkpoint... reading config file"
-    return hyper_params
 
 
 if __name__ == '__main__':
