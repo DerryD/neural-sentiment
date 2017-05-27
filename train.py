@@ -48,16 +48,21 @@ def main():
     logging.info("Number of training examples per batch: {0},\n"
                  "Number of batches per epoch: {1}".format(config.batch_size,
                                                            num_batches))
-    with tf.Session() as sess:
-        writer = tf.summary.FileWriter("/tmp/tb_logs", sess.graph)
+    sv = tf.train.Supervisor(logdir="/tmp/tb_logs")
+    with sv.managed_session() as sess:
         print 'creating model...'
         sent_input = SentimentInput(config, data)
         with tf.name_scope("Train"):
             with tf.variable_scope("Model", reuse=None):
                 model = SentimentModel(config, sent_input)
-        with tf.name_scope("Test"):
+            tf.summary.scalar("Training Loss", model.mean_loss)
+            tf.summary.scalar("Training Accuracy", model.accuracy)
+            tf.summary.scalar("Learning Rate", model.learning_rate)
+        with tf.name_scope("Valid"):
             with tf.variable_scope("Model", reuse=True):
-                m_test = SentimentModel(config, sent_input)
+                m_valid = SentimentModel(config, sent_input)
+            tf.summary.scalar("Validation Loss", m_valid.mean_loss)
+            tf.summary.scalar("Validation Accuracy", m_valid.accuracy)
         sess.run(tf.global_variables_initializer())
         # model = create_model(config, sess)
         learning_rate = config.learning_rate
@@ -80,14 +85,13 @@ def main():
             start_time = time.time()
 
             inputs, targets, seq_lengths = sent_input.get_batch()
-            str_summary, step_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
+            step_loss, _, accuracy = model.step(sess, inputs, targets, seq_lengths, True)
             steps_per_checkpoint = 100
             step_time += (time.time() - start_time) / steps_per_checkpoint
             loss += step_loss / steps_per_checkpoint
 
             # Once in a while, we run evals.
             if step % steps_per_checkpoint == 0:
-                writer.add_summary(str_summary, step)
                 # Print statistics for the previous epoch.
                 print ("global step %d learning rate %.7f step-time %.2f loss %.4f"
                        % (model.global_step.eval(), model.learning_rate.eval(),
@@ -102,15 +106,14 @@ def main():
                 step_time, loss, test_accuracy = 0.0, 0.0, 0.0
                 # Run evals on test set and print their accuracy.
                 print "Running test set"
-                for _ in xrange(len(m_test.input_data.test_data)):
+                for _ in xrange(len(m_valid.input_data.test_data)):
                     inputs, targets, seq_lengths = sent_input.get_batch(False)
-                    str_summary, test_loss, _, accuracy = m_test.step(
+                    test_loss, _, accuracy = m_valid.step(
                         sess, inputs, targets, seq_lengths, False)
                     loss += test_loss
                     test_accuracy += accuracy
                 normalized_test_loss, normalized_test_accuracy = loss / len(
-                    m_test.input_data.test_data), test_accuracy / len(m_test.input_data.test_data)
-                writer.add_summary(str_summary, step)
+                    m_valid.input_data.test_data), test_accuracy / len(m_valid.input_data.test_data)
                 print "Avg Test Loss: {0}, Avg Test Accuracy: {1}".format(
                     normalized_test_loss, normalized_test_accuracy)
                 print "-------Step {0}/{1}------".format(step, tot_steps)

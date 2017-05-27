@@ -111,7 +111,6 @@ class SentimentModel(object):
         # seq_input: list of tensors, each tensor is size max_seq_length
         # target: a list of values between 0 and 1 indicating target scores
         # seq_lengths:the early stop lengths of each input tensor
-        self.str_summary_type = tf.placeholder(tf.string, name="str_summary_type")
         self.seq_input = tf.placeholder(
             tf.int32, shape=[None, config.max_seq_len], name="input")
         self.target = tf.placeholder(
@@ -191,11 +190,6 @@ class SentimentModel(object):
                 tf.summary.scalar("grad_norms", norm)
             self.update = opt.apply_gradients(zip(
                 clipped_gradients, params), global_step=self.global_step)
-            loss_summ = tf.summary.scalar("{0}_loss".format(
-                self.str_summary_type), self.mean_loss)
-            acc_summ = tf.summary.scalar("{0}_accuracy".format(
-                self.str_summary_type), self.accuracy)
-            self.merged = tf.summary.merge([loss_summ, acc_summ])
 
     def step(self, session, inputs, targets, seq_lengths, is_training=False):
         """
@@ -216,16 +210,11 @@ class SentimentModel(object):
             self.seq_lengths.name: seq_lengths
         }
         if is_training:
-            input_feed[self.str_summary_type.name] = "train"
-            output_feed = [self.merged, self.mean_loss, self.update]
+            output_feed = [self.mean_loss, self.update, self.accuracy]
         else:
-            input_feed[self.str_summary_type.name] = "test"
-            output_feed = [self.merged, self.mean_loss, self.y, self.accuracy]
+            output_feed = [self.mean_loss, self.y, self.accuracy]
         outputs = session.run(output_feed, input_feed)
-        if is_training:
-            return outputs[0], outputs[1], None
-        else:
-            return outputs[0], outputs[1], outputs[2], outputs[3]
+        return outputs[0], outputs[1], outputs[2]
 
     def assign_lr(self, session, lr_value):
         session.run(self._lr_update, feed_dict={self._new_lr: lr_value})
