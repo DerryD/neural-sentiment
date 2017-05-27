@@ -2,6 +2,76 @@ import tensorflow as tf
 import numpy as np
 
 
+class SentimentInput(object):
+    def __init__(self, config, data):
+        self.batch_size = config.batch_size
+        # 70/30 split for train/test
+        train_start_end_index = [0, int(0.7 * len(data))]
+        test_start_end_index = [int(0.7 * len(data)) + 1, len(data) - 1]
+        targets = data[:, -2]
+        one_hot = np.zeros((len(targets), 2))
+        one_hot[np.arange(len(targets)), targets] = 1
+        sequence_lengths = data[:, -1]
+        data = data[:, :-2]
+        self.train_data = data[train_start_end_index[0]: train_start_end_index[1]]
+        self.test_data = data[test_start_end_index[0]:test_start_end_index[1]]
+        self.test_num_batch = len(self.test_data) / self.batch_size
+        num_train_batches = len(self.train_data) / self.batch_size
+        num_test_batches = len(self.test_data) / self.batch_size
+        train_cutoff = len(self.train_data) - (len(self.train_data) % self.batch_size)
+        test_cutoff = len(self.test_data) - (len(self.test_data) % self.batch_size)
+        self.train_data = self.train_data[:train_cutoff]
+        self.test_data = self.test_data[:test_cutoff]
+
+        self.train_sequence_lengths = \
+            sequence_lengths[train_start_end_index[0]: train_start_end_index[1]][:train_cutoff]
+        self.train_sequence_lengths = np.split(self.train_sequence_lengths, num_train_batches)
+        self.train_targets = one_hot[train_start_end_index[0]: train_start_end_index[1]][:train_cutoff]
+        self.train_targets = np.split(self.train_targets, num_train_batches)
+        self.train_data = np.split(self.train_data, num_train_batches)
+
+        print "Test size is: {0}, splitting into {1} batches".format(
+            len(self.test_data), num_test_batches)
+        self.test_data = np.split(self.test_data, num_test_batches)
+        self.test_targets = one_hot[test_start_end_index[0]: test_start_end_index[1]][:test_cutoff]
+        self.test_targets = np.split(self.test_targets, num_test_batches)
+        self.test_sequence_lengths = \
+            sequence_lengths[test_start_end_index[0]: test_start_end_index[1]][:test_cutoff]
+        self.test_sequence_lengths = np.split(self.test_sequence_lengths, num_test_batches)
+        self.test_batch_pointer = 0
+        self.train_batch_pointer = 0
+
+    def get_batch(self, is_training=True):
+        """
+        Get a random batch of data to preprocess for a step
+        not sure how efficient this is...
+
+        Input:
+        data: shuffled batch * n * m numpy array of data
+        train_data: flag indicating whether or not to increment batch pointer, in other
+            word whether to return the next training batch, or cross val data
+
+        Returns:
+        A numpy arrays for inputs, target, and seq_lengths
+
+        """
+        if is_training:
+            batch_inputs = self.train_data[self.train_batch_pointer]
+            targets = self.train_targets[self.train_batch_pointer]
+            seq_lengths = self.train_sequence_lengths[self.train_batch_pointer]
+            self.train_batch_pointer += 1
+            self.train_batch_pointer = self.train_batch_pointer % len(
+                self.train_data)
+            return batch_inputs, targets, seq_lengths
+        else:
+            batch_inputs = self.test_data[self.test_batch_pointer]
+            targets = self.test_targets[self.test_batch_pointer]
+            seq_lengths = self.test_sequence_lengths[self.test_batch_pointer]
+            self.test_batch_pointer += 1
+            self.test_batch_pointer = self.test_batch_pointer % len(self.test_data)
+            return batch_inputs, targets, seq_lengths
+
+
 class SentimentModel(object):
     """
     Sentiment Model
@@ -16,7 +86,14 @@ class SentimentModel(object):
     is_training: whether to run backward pass or not
     """
 
-    def __init__(self, config, is_training=True):
+    def __init__(self, config, data, is_training=True):
+        """
+        
+        :param config: 
+        :type data: SentimentInput
+        :param is_training: 
+        """
+        self.input_data = data
         self.num_classes = 2
         self.dropout = config.keep_prob
         self.vocab_size = config.vocab_size
@@ -30,15 +107,6 @@ class SentimentModel(object):
         self.max_grad_norm = config.max_grad_norm
         self.global_step = tf.Variable(0, trainable=False)
         self.max_seq_length = config.max_seq_len
-        self.test_num_batch = None
-        self.train_sequence_lengths = None
-        self.test_sequence_lengths = None
-        self.train_data = None
-        self.test_data = None
-        self.train_targets = None
-        self.test_targets = None
-        self.test_batch_pointer = 0
-        self.train_batch_pointer = 0
 
         # seq_input: list of tensors, each tensor is size max_seq_length
         # target: a list of values between 0 and 1 indicating target scores
@@ -128,72 +196,6 @@ class SentimentModel(object):
             acc_summ = tf.summary.scalar("{0}_accuracy".format(
                 self.str_summary_type), self.accuracy)
             self.merged = tf.summary.merge([loss_summ, acc_summ])
-
-    def get_batch(self, test_data=False):
-        """
-        Get a random batch of data to preprocess for a step
-        not sure how efficient this is...
-
-        Input:
-        data: shuffled batch * n * m numpy array of data
-        train_data: flag indicating whether or not to increment batch pointer, in other
-            word whether to return the next training batch, or cross val data
-
-        Returns:
-        A numpy arrays for inputs, target, and seq_lengths
-
-        """
-        if not test_data:
-            batch_inputs = self.train_data[self.train_batch_pointer]
-            targets = self.train_targets[self.train_batch_pointer]
-            seq_lengths = self.train_sequence_lengths[self.train_batch_pointer]
-            self.train_batch_pointer += 1
-            self.train_batch_pointer = self.train_batch_pointer % len(
-                self.train_data)
-            return batch_inputs, targets, seq_lengths
-        else:
-            batch_inputs = self.test_data[self.test_batch_pointer]
-            targets = self.test_targets[self.test_batch_pointer]
-            seq_lengths = self.test_sequence_lengths[self.test_batch_pointer]
-            self.test_batch_pointer += 1
-            self.test_batch_pointer = self.test_batch_pointer % len(self.test_data)
-            return batch_inputs, targets, seq_lengths
-
-    def init_data(self, data, train_start_end_index, test_start_end_index):
-        """
-        Split data into train/test sets and load into memory
-        """
-        # cutoff non even number of batches
-        targets = data[:, -2]
-        one_hot = np.zeros((len(targets), 2))
-        one_hot[np.arange(len(targets)), targets] = 1
-        sequence_lengths = data[:, -1]
-        data = data[:, :-2]
-        self.train_data = data[train_start_end_index[0]: train_start_end_index[1]]
-        self.test_data = data[test_start_end_index[0]:test_start_end_index[1]]
-        self.test_num_batch = len(self.test_data) / self.batch_size
-        num_train_batches = len(self.train_data) / self.batch_size
-        num_test_batches = len(self.test_data) / self.batch_size
-        train_cutoff = len(self.train_data) - (len(self.train_data) % self.batch_size)
-        test_cutoff = len(self.test_data) - (len(self.test_data) % self.batch_size)
-        self.train_data = self.train_data[:train_cutoff]
-        self.test_data = self.test_data[:test_cutoff]
-
-        self.train_sequence_lengths = \
-            sequence_lengths[train_start_end_index[0]: train_start_end_index[1]][:train_cutoff]
-        self.train_sequence_lengths = np.split(self.train_sequence_lengths, num_train_batches)
-        self.train_targets = one_hot[train_start_end_index[0]: train_start_end_index[1]][:train_cutoff]
-        self.train_targets = np.split(self.train_targets, num_train_batches)
-        self.train_data = np.split(self.train_data, num_train_batches)
-
-        print "Test size is: {0}, splitting into {1} batches".format(
-            len(self.test_data), num_test_batches)
-        self.test_data = np.split(self.test_data, num_test_batches)
-        self.test_targets = one_hot[test_start_end_index[0]: test_start_end_index[1]][:test_cutoff]
-        self.test_targets = np.split(self.test_targets, num_test_batches)
-        self.test_sequence_lengths = \
-            sequence_lengths[test_start_end_index[0]:test_start_end_index[1]][:test_cutoff]
-        self.test_sequence_lengths = np.split(self.test_sequence_lengths, num_test_batches)
 
     def step(self, session, inputs, targets, seq_lengths, is_training=False):
         """

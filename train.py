@@ -12,7 +12,7 @@ import time
 import tensorflow as tf
 from utils.data_processor import build_data
 from utils.config import Config
-from models.sentiment import SentimentModel
+from models.sentiment import SentimentModel, SentimentInput
 from utils.vocab_mapping import VocabMapping
 import logging
 
@@ -30,7 +30,7 @@ def main():
                config.vocab_size)
 
     # create model
-    logging.info('Creating model with:\n\tNumber of hidden layers: %d\n'
+    logging.info('\nCreating model with:\n\tNumber of hidden layers: %d\n'
                  '\tNumber of units per layer: %d\n\tDropout: %f' % (
                     config.num_layers, config.embedding_dims, config.keep_prob))
     vocab_mapping = VocabMapping()
@@ -44,16 +44,20 @@ def main():
     # data = data[:10000]
     logging.info('Shape of data: %s' % str(data.shape))
     num_batches = len(data) / config.batch_size
-    # 70/30 split for train/test
-    train_start_end_index = [0, int(0.7 * len(data))]
-    test_start_end_index = [int(0.7 * len(data)) + 1, len(data) - 1]
+
     logging.info("Number of training examples per batch: {0},\n"
                  "Number of batches per epoch: {1}".format(config.batch_size,
                                                            num_batches))
     with tf.Session() as sess:
         writer = tf.summary.FileWriter("/tmp/tb_logs", sess.graph)
         print 'creating model...'
-        model = SentimentModel(config)
+        sent_input = SentimentInput(config, data)
+        with tf.name_scope("Train"):
+            with tf.variable_scope("Model", reuse=None):
+                model = SentimentModel(config, sent_input)
+        with tf.name_scope("Test"):
+            with tf.variable_scope("Model", reuse=True):
+                m_test = SentimentModel(config, sent_input)
         sess.run(tf.global_variables_initializer())
         # model = create_model(config, sess)
         learning_rate = config.learning_rate
@@ -70,19 +74,18 @@ def main():
         previous_losses = []
         # Total number of batches to pass through.
         tot_steps = num_batches * config.max_epoch
-        model.init_data(data, train_start_end_index, test_start_end_index)
         # starting at step 1 to prevent test set from running after first batch
         for step in xrange(1, tot_steps):
             # Get a batch and make a step.
             start_time = time.time()
 
-            inputs, targets, seq_lengths = model.get_batch()
+            inputs, targets, seq_lengths = sent_input.get_batch()
             str_summary, step_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
             steps_per_checkpoint = 100
             step_time += (time.time() - start_time) / steps_per_checkpoint
             loss += step_loss / steps_per_checkpoint
 
-            # Once in a while, we save checkpoint, print statistics, and run evals.
+            # Once in a while, we run evals.
             if step % steps_per_checkpoint == 0:
                 writer.add_summary(str_summary, step)
                 # Print statistics for the previous epoch.
@@ -99,14 +102,14 @@ def main():
                 step_time, loss, test_accuracy = 0.0, 0.0, 0.0
                 # Run evals on test set and print their accuracy.
                 print "Running test set"
-                for _ in xrange(len(model.test_data)):
-                    inputs, targets, seq_lengths = model.get_batch(True)
-                    str_summary, test_loss, _, accuracy = model.step(
+                for _ in xrange(len(m_test.input_data.test_data)):
+                    inputs, targets, seq_lengths = sent_input.get_batch(False)
+                    str_summary, test_loss, _, accuracy = m_test.step(
                         sess, inputs, targets, seq_lengths, False)
                     loss += test_loss
                     test_accuracy += accuracy
                 normalized_test_loss, normalized_test_accuracy = loss / len(
-                    model.test_data), test_accuracy / len(model.test_data)
+                    m_test.input_data.test_data), test_accuracy / len(m_test.input_data.test_data)
                 writer.add_summary(str_summary, step)
                 print "Avg Test Loss: {0}, Avg Test Accuracy: {1}".format(
                     normalized_test_loss, normalized_test_accuracy)
