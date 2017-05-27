@@ -2,3 +2,5 @@ lstm-sent
 *.pyc
 .idea/
 config.ini
+utils/hyperparams.py
+sample.py

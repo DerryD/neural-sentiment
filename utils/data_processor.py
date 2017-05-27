@@ -14,13 +14,13 @@ url = "http://ai.stanford.edu/~amaas/data/sentiment/aclImdb_v1.tar.gz"
 
 
 def build_data(max_seq_length, max_vocab_size):
+    if os.path.exists("data/processed"):
+        return
     if os.path.exists("data/vocab.pkl"):
         print "vocab mapping found..."
     else:
         print "no vocab mapping found, running preprocessor..."
         create_vocab(dirs, max_vocab_size)
-    if os.path.exists("data/processed"):
-        return
     if not os.path.exists("data/"):
         os.makedirs("data/")
     if not os.path.exists("data/checkpoints/"):

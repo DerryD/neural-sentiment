@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 export PYTHONPATH="/home/dairui/workspace/neural-sentiment/:$PYTHONPATH"
+python -u train.py > /tmp/ns.log 2>&1 &
 tensorboard --logdir=/tmp/tb_logs
 """
 from six.moves import xrange
@@ -20,14 +21,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 tf.logging.set_verbosity(tf.logging.ERROR)
-
-# Defaults for network parameters
-flags = tf.app.flags
-FLAGS = flags.FLAGS
-flags.DEFINE_string("config_file", "config.ini",
-                    "Path to configuration file with hyper-parameters.")
-flags.DEFINE_string("data_dir", "data/",
-                    "Path to main data directory.")
+path = "data/processed/"
 
 
 def main():
@@ -42,7 +36,6 @@ def main():
     vocab_mapping = VocabMapping()
     vocab_size = vocab_mapping.get_size()
     print "Vocab size is: {0}".format(vocab_size)
-    path = os.path.join(FLAGS.data_dir, "processed/")
     infile = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
     # randomize data order
     print infile
@@ -54,8 +47,9 @@ def main():
     # 70/30 split for train/test
     train_start_end_index = [0, int(0.7 * len(data))]
     test_start_end_index = [int(0.7 * len(data)) + 1, len(data) - 1]
-    print "Number of training examples per batch: {0}, \
-    \nNumber of batches per epoch: {1}".format(config.batch_size, num_batches)
+    logging.info("Number of training examples per batch: {0},\n"
+                 "Number of batches per epoch: {1}".format(config.batch_size,
+                                                           num_batches))
     with tf.Session() as sess:
         writer = tf.summary.FileWriter("/tmp/tb_logs", sess.graph)
         print 'creating model...'

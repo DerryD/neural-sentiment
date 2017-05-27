@@ -53,36 +53,35 @@ class SentimentModel(object):
 
         with tf.variable_scope("embedding"), tf.device("/cpu:0"):
             # noinspection PyPep8Naming
-            W = tf.get_variable("W", [self.vocab_size, config.embedding_dims],
-                                initializer=initializer)
-            embedded_tokens = tf.nn.embedding_lookup(W, self.seq_input)
-            embedded_tokens_drop = tf.nn.dropout(
-                embedded_tokens, config.keep_prob)
-
-        rnn_input = [embedded_tokens_drop[:, i, :] for i in range(self.max_seq_length)]
-        # rnn_input = tf.unstack(embedded_tokens_drop, num=self.max_seq_length, axis=1)
-
-        with tf.variable_scope("lstm"):
-            def lstm_cell():
-                return tf.contrib.rnn.LSTMCell(
-                    config.embedding_dims,
-                    initializer=initializer,
-                    state_is_tuple=True,
-                    reuse=tf.get_variable_scope().reuse)
-
+            embedding = tf.get_variable("embedding", [self.vocab_size, config.embedding_dims],
+                                        initializer=initializer)
+            inputs = tf.nn.embedding_lookup(embedding, self.seq_input)
             if is_training and self.dropout < 1:
-                def attn_cell():
-                    return tf.contrib.rnn.DropoutWrapper(
-                        lstm_cell(),
-                        output_keep_prob=config.keep_prob
-                    )
-            else:
-                attn_cell = lstm_cell
+                inputs = tf.nn.dropout(
+                    inputs, config.keep_prob)
 
-            cell = tf.contrib.rnn.MultiRNNCell(
-                [attn_cell() for _ in range(config.num_layers)], state_is_tuple=True)
+        def lstm_cell():
+            return tf.contrib.rnn.LSTMCell(
+                config.embedding_dims,
+                initializer=initializer,
+                state_is_tuple=True,
+                reuse=tf.get_variable_scope().reuse)
 
-            initial_state = cell.zero_state(self.batch_size, tf.float32)
+        if is_training and self.dropout < 1:
+            def attn_cell():
+                return tf.contrib.rnn.DropoutWrapper(
+                    lstm_cell(),
+                    output_keep_prob=config.keep_prob
+                )
+        else:
+            attn_cell = lstm_cell
+
+        cell = tf.contrib.rnn.MultiRNNCell(
+            [attn_cell() for _ in range(config.num_layers)], state_is_tuple=True)
+
+        initial_state = cell.zero_state(self.batch_size, tf.float32)
+        with tf.variable_scope("lstm"):
+            rnn_input = tf.unstack(inputs, num=self.max_seq_length, axis=1)
             rnn_output, rnn_state = tf.contrib.rnn.static_rnn(
                 cell, rnn_input,
                 initial_state=initial_state,
@@ -90,14 +89,14 @@ class SentimentModel(object):
                 scope=tf.get_variable_scope()
             )
 
-        with tf.variable_scope("output_projection"):
+        with tf.variable_scope("softmax"):
             # noinspection PyPep8Naming
-            W = tf.get_variable("W", [config.embedding_dims, self.num_classes],
-                                initializer=tf.truncated_normal_initializer(stddev=0.1))
-            b = tf.get_variable("b", [self.num_classes],
-                                initializer=tf.constant_initializer(0.1))
+            softmax_w = tf.get_variable("softmax_w", [config.embedding_dims, self.num_classes],
+                                        initializer=tf.truncated_normal_initializer(stddev=0.1))
+            softmax_b = tf.get_variable("softmax_b", [self.num_classes],
+                                        initializer=tf.constant_initializer(0.1))
             # we use the cell memory state for information on sentence embedding
-            self.scores = tf.nn.xw_plus_b(rnn_state[-1][0], W, b)
+            self.scores = tf.nn.xw_plus_b(rnn_state[-1][0], softmax_w, softmax_b)
             self.y = tf.nn.softmax(self.scores)
             self.predictions = tf.argmax(self.scores, 1)
 
@@ -129,7 +128,6 @@ class SentimentModel(object):
             acc_summ = tf.summary.scalar("{0}_accuracy".format(
                 self.str_summary_type), self.accuracy)
             self.merged = tf.summary.merge([loss_summ, acc_summ])
-        self.saver = tf.train.Saver(tf.global_variables())
 
     def get_batch(self, test_data=False):
         """
