@@ -7,21 +7,21 @@ class SentimentInput(object):
         self.batch_size = config.batch_size
         # 70/30 split for train/test
         train_start_end_index = [0, int(0.7 * len(data))]
-        test_start_end_index = [int(0.7 * len(data)) + 1, len(data) - 1]
+        valid_start_end_index = [int(0.7 * len(data)) + 1, len(data) - 1]
         targets = data[:, -2]
         one_hot = np.zeros((len(targets), 2))
         one_hot[np.arange(len(targets)), targets] = 1
         sequence_lengths = data[:, -1]
         data = data[:, :-2]
         self.train_data = data[train_start_end_index[0]: train_start_end_index[1]]
-        self.test_data = data[test_start_end_index[0]:test_start_end_index[1]]
-        self.test_num_batch = len(self.test_data) / self.batch_size
+        self.valid_data = data[valid_start_end_index[0]:valid_start_end_index[1]]
+        self.valid_num_batch = len(self.valid_data) / self.batch_size
         num_train_batches = len(self.train_data) / self.batch_size
-        num_test_batches = len(self.test_data) / self.batch_size
+        num_valid_batches = len(self.valid_data) / self.batch_size
         train_cutoff = len(self.train_data) - (len(self.train_data) % self.batch_size)
-        test_cutoff = len(self.test_data) - (len(self.test_data) % self.batch_size)
+        valid_cutoff = len(self.valid_data) - (len(self.valid_data) % self.batch_size)
         self.train_data = self.train_data[:train_cutoff]
-        self.test_data = self.test_data[:test_cutoff]
+        self.valid_data = self.valid_data[:valid_cutoff]
 
         self.train_sequence_lengths = \
             sequence_lengths[train_start_end_index[0]: train_start_end_index[1]][:train_cutoff]
@@ -30,18 +30,18 @@ class SentimentInput(object):
         self.train_targets = np.split(self.train_targets, num_train_batches)
         self.train_data = np.split(self.train_data, num_train_batches)
 
-        print "Test size is: {0}, splitting into {1} batches".format(
-            len(self.test_data), num_test_batches)
-        self.test_data = np.split(self.test_data, num_test_batches)
-        self.test_targets = one_hot[test_start_end_index[0]: test_start_end_index[1]][:test_cutoff]
-        self.test_targets = np.split(self.test_targets, num_test_batches)
-        self.test_sequence_lengths = \
-            sequence_lengths[test_start_end_index[0]: test_start_end_index[1]][:test_cutoff]
-        self.test_sequence_lengths = np.split(self.test_sequence_lengths, num_test_batches)
-        self.test_batch_pointer = 0
+        print "Validation size is: {0}, splitting into {1} batches".format(
+            len(self.valid_data), num_valid_batches)
+        self.valid_data = np.split(self.valid_data, num_valid_batches)
+        self.valid_targets = one_hot[valid_start_end_index[0]: valid_start_end_index[1]][:valid_cutoff]
+        self.valid_targets = np.split(self.valid_targets, num_valid_batches)
+        self.valid_seq_len = \
+            sequence_lengths[valid_start_end_index[0]: valid_start_end_index[1]][:valid_cutoff]
+        self.valid_seq_len = np.split(self.valid_seq_len, num_valid_batches)
+        self.valid_batch_pointer = 0
         self.train_batch_pointer = 0
 
-    def get_batch(self, is_training=True):
+    def next_batch(self, is_training=True):
         """
         Get a random batch of data to preprocess for a step
         not sure how efficient this is...
@@ -64,11 +64,11 @@ class SentimentInput(object):
                 self.train_data)
             return batch_inputs, targets, seq_lengths
         else:
-            batch_inputs = self.test_data[self.test_batch_pointer]
-            targets = self.test_targets[self.test_batch_pointer]
-            seq_lengths = self.test_sequence_lengths[self.test_batch_pointer]
-            self.test_batch_pointer += 1
-            self.test_batch_pointer = self.test_batch_pointer % len(self.test_data)
+            batch_inputs = self.valid_data[self.valid_batch_pointer]
+            targets = self.valid_targets[self.valid_batch_pointer]
+            seq_lengths = self.valid_seq_len[self.valid_batch_pointer]
+            self.valid_batch_pointer += 1
+            self.valid_batch_pointer = self.valid_batch_pointer % len(self.valid_data)
             return batch_inputs, targets, seq_lengths
 
 
@@ -112,16 +112,18 @@ class SentimentModel(object):
         # target: a list of values between 0 and 1 indicating target scores
         # seq_lengths:the early stop lengths of each input tensor
         self.seq_input = tf.placeholder(
-            tf.int32, shape=[None, config.max_seq_len], name="input")
+            tf.int32, shape=[None, config.max_seq_len])
         self.target = tf.placeholder(
-            tf.float32, name="target", shape=[None, self.num_classes])
-        self.seq_lengths = tf.placeholder(tf.int32, shape=[None],
-                                          name="early_stop")
+            tf.float32, shape=[None, self.num_classes])
+        self.seq_lengths = tf.placeholder(tf.int32, shape=[None])
 
         with tf.variable_scope("embedding"), tf.device("/cpu:0"):
             # noinspection PyPep8Naming
-            embedding = tf.get_variable("embedding", [self.vocab_size, config.embedding_dims],
-                                        initializer=initializer)
+            embedding = tf.get_variable(
+                name="embedding",
+                shape=[self.vocab_size, config.embedding_dims],
+                initializer=initializer
+            )
             inputs = tf.nn.embedding_lookup(embedding, self.seq_input)
             if is_training and self.dropout < 1:
                 inputs = tf.nn.dropout(
@@ -158,10 +160,13 @@ class SentimentModel(object):
 
         with tf.variable_scope("softmax"):
             # noinspection PyPep8Naming
-            softmax_w = tf.get_variable("softmax_w", [config.embedding_dims, self.num_classes],
-                                        initializer=tf.truncated_normal_initializer(stddev=0.1))
-            softmax_b = tf.get_variable("softmax_b", [self.num_classes],
-                                        initializer=tf.constant_initializer(0.1))
+            softmax_w = tf.get_variable(
+                "softmax_w",
+                [config.embedding_dims, self.num_classes],
+                initializer=tf.truncated_normal_initializer(stddev=0.1))
+            softmax_b = tf.get_variable(
+                "softmax_b", [self.num_classes],
+                initializer=tf.constant_initializer(0.1))
             # we use the cell memory state for information on sentence embedding
             self.scores = tf.nn.xw_plus_b(rnn_state[-1][0], softmax_w, softmax_b)
             self.y = tf.nn.softmax(self.scores)
@@ -169,7 +174,7 @@ class SentimentModel(object):
 
         with tf.variable_scope("loss"):
             self.losses = tf.nn.softmax_cross_entropy_with_logits(
-                logits=self.scores, labels=self.target, name="ce_losses")
+                logits=self.scores, labels=self.target)
             self.total_loss = tf.reduce_sum(self.losses)
             self.mean_loss = tf.reduce_mean(self.losses)
 
@@ -177,7 +182,7 @@ class SentimentModel(object):
             self.correct_predictions = tf.equal(
                 self.predictions, tf.argmax(self.target, 1))
             self.accuracy = tf.reduce_mean(tf.cast(
-                self.correct_predictions, "float"), name="accuracy")
+                self.correct_predictions, "float"))
 
         params = tf.trainable_variables()
         if is_training:
@@ -205,16 +210,16 @@ class SentimentModel(object):
         merged_tb_vars, loss, outputs
         """
         input_feed = {
-            self.seq_input.name: inputs,
-            self.target.name: targets,
-            self.seq_lengths.name: seq_lengths
+            self.seq_input: inputs,
+            self.target: targets,
+            self.seq_lengths: seq_lengths
         }
         if is_training:
             output_feed = [self.mean_loss, self.update, self.accuracy]
         else:
             output_feed = [self.mean_loss, self.y, self.accuracy]
         outputs = session.run(output_feed, input_feed)
-        return outputs[0], outputs[1], outputs[2]
+        return outputs
 
     def assign_lr(self, session, lr_value):
         session.run(self._lr_update, feed_dict={self._new_lr: lr_value})
