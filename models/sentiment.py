@@ -186,7 +186,11 @@ class SentimentModel(object):
         # self.str_summary_type = tf.placeholder(tf.string, name="str_summary_type")
         loss_summ = tf.summary.scalar("loss", self.cost)
         acc_summ = tf.summary.scalar("accuracy", self.accuracy)
-        self.merged = tf.summary.merge([loss_summ, acc_summ])
+        if is_training:
+            lr_summ = tf.summary.scalar("learning_rate", self.learning_rate)
+            self.merged = tf.summary.merge([loss_summ, acc_summ, lr_summ])
+        else:
+            self.merged = tf.summary.merge([loss_summ, acc_summ])
 
         if not is_training:
             return
