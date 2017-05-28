@@ -3,6 +3,7 @@
 export PYTHONPATH="/home/dairui/workspace/neural-sentiment/:$PYTHONPATH"
 python -u train.py > /tmp/ns.log 2>&1 &
 tensorboard --logdir=/tmp/tb_logs
+rm -rf /tmp/tb_logs
 """
 from six.moves import xrange
 import numpy as np
