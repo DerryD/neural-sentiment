@@ -57,7 +57,7 @@ def main(_):
                 model = SentimentModel(config, sent_input, True)
             # tf.summary.scalar("training_loss", model.cost)
             # tf.summary.scalar("training_accuracy", model.accuracy)
-            # tf.summary.scalar("learning_rate", model.learning_rate)
+            tf.summary.scalar("learning_rate", model.learning_rate)
         with tf.name_scope("Valid"):
             with tf.variable_scope("Model", reuse=True):
                 m_valid = SentimentModel(config, sent_input, is_training=False)
@@ -87,13 +87,13 @@ def main(_):
                 # Get a batch and make a step.
                 start_time = time.time()
                 inputs, targets, seq_lengths = model.input_data.next_batch()
-                step_loss, _, accuracy, str_summary = model.step(sess, inputs, targets, seq_lengths, True)
+                step_loss, _, accuracy, train_summary = model.step(sess, inputs, targets, seq_lengths, True)
                 steps_per_checkpoint = 100
                 step_time += (time.time() - start_time) / steps_per_checkpoint
                 loss += step_loss / steps_per_checkpoint
+                writer.add_summary(train_summary, step)
                 # Once in a while, we run evals.
                 if step % steps_per_checkpoint == 0:
-                    writer.add_summary(str_summary, step)
                     # Print statistics for the previous epoch.
                     print ("global step %d learning rate %.7f step-time %.2f loss %.4f"
                            % (step, sess.run(model.learning_rate),
@@ -110,14 +110,14 @@ def main(_):
                     logging.info('Running test set...')
                     for _ in xrange(len(m_valid.input_data.valid_data)):
                         inputs, targets, seq_lengths = m_valid.input_data.next_batch(False)
-                        valid_loss, _, accuracy, valid_str_summary = m_valid.step(
+                        valid_loss, _, accuracy, valid_summary = m_valid.step(
                             sess, inputs, targets, seq_lengths, False)
                         loss += valid_loss
                         valid_accuracy += accuracy
                     norm_valid_loss = loss / len(m_valid.input_data.valid_data)
                     norm_valid_accuracy = valid_accuracy / len(m_valid.input_data.valid_data)
                     # noinspection PyUnboundLocalVariable
-                    writer.add_summary(valid_str_summary, step)
+                    writer.add_summary(valid_summary, step)
                     print "Avg Test Loss: {0}, Avg Test Accuracy: {1}".format(
                         norm_valid_loss, norm_valid_accuracy)
                     print "-------Step {0}/{1}------".format(step, tot_steps)
