@@ -137,6 +137,7 @@ class SentimentModel(object):
             def attn_cell():
                 return tf.contrib.rnn.DropoutWrapper(
                     lstm_cell(),
+                    input_keep_prob=config.keep_prob,
                     output_keep_prob=config.keep_prob
                 )
         else:
@@ -165,21 +166,20 @@ class SentimentModel(object):
                 "softmax_b", [self.num_classes],
                 initializer=tf.constant_initializer(0.1))
             # we use the cell memory state for information on sentence embedding
-            self.scores = tf.nn.xw_plus_b(rnn_state[-1][0], softmax_w, softmax_b)
-            self.y = tf.nn.softmax(self.scores)
-            self.predictions = tf.argmax(self.scores, 1)
+            scores = tf.nn.xw_plus_b(rnn_state[-1][0], softmax_w, softmax_b)
+            self.y = tf.nn.softmax(scores)
+            predictions = tf.argmax(scores, 1)
 
         with tf.variable_scope("loss"):
-            self.losses = tf.nn.softmax_cross_entropy_with_logits(
-                logits=self.scores, labels=self.target)
-            self.total_loss = tf.reduce_sum(self.losses)
-            self.mean_loss = tf.reduce_mean(self.losses)
+            loss = tf.nn.softmax_cross_entropy_with_logits(
+                logits=scores, labels=self.target)
+            self._cost = tf.reduce_mean(loss)
 
         with tf.variable_scope("accuracy"):
-            self.correct_predictions = tf.equal(
-                self.predictions, tf.argmax(self.target, 1))
+            correct_predictions = tf.equal(
+                predictions, tf.argmax(self.target, 1))
             self.accuracy = tf.reduce_mean(tf.cast(
-                self.correct_predictions, "float"))
+                correct_predictions, "float"))
 
         if not is_training:
             return
@@ -187,12 +187,11 @@ class SentimentModel(object):
         self._new_lr = tf.placeholder(
             tf.float32, shape=[], name="new_learning_rate")
         self._lr_update = tf.assign(self.learning_rate, self._new_lr)
-        self.max_grad_norm = config.max_grad_norm
         params = tf.trainable_variables()
         opt = tf.train.AdamOptimizer(self.learning_rate)
-        gradients = tf.gradients(self.losses, params)
+        gradients = tf.gradients(loss, params)
         clipped_gradients, norm = tf.clip_by_global_norm(
-            gradients, self.max_grad_norm)
+            gradients, config.max_grad_norm)
         self.update = opt.apply_gradients(
             zip(clipped_gradients, params),
             global_step=tf.contrib.framework.get_or_create_global_step()
@@ -217,11 +216,15 @@ class SentimentModel(object):
             self.seq_lengths: seq_lengths
         }
         if is_training:
-            fetches = [self.mean_loss, self.update, self.accuracy]
+            fetches = [self.cost, self.update, self.accuracy]
         else:
-            fetches = [self.mean_loss, self.y, self.accuracy]
+            fetches = [self.cost, self.y, self.accuracy]
         outputs = session.run(fetches, feed_dict)
         return outputs
 
     def assign_lr(self, session, lr_value):
         session.run(self._lr_update, feed_dict={self._new_lr: lr_value})
+
+    @property
+    def cost(self):
+        return self._cost

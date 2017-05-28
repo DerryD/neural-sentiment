@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 class Config(object):
     def __init__(self):
-        self.learning_rate = 0.01
+        self.learning_rate = 0.009
         self.max_grad_norm = 5
         self.num_layers = 2        # number of stacked LSTM cells
         self.embedding_dims = 50   # embedded size
         self.max_epoch = 50        # Number of epochs for iteration
-        self.keep_prob = 0.6
+        self.keep_prob = 0.5
         self.lr_decay = 0.6
         self.batch_size = 200
         self.num_classes = 2
