@@ -137,7 +137,7 @@ class SentimentModel(object):
             def attn_cell():
                 return tf.contrib.rnn.DropoutWrapper(
                     lstm_cell(),
-                    input_keep_prob=config.keep_prob,
+                    # input_keep_prob=config.keep_prob,
                     output_keep_prob=config.keep_prob
                 )
         else:
