@@ -67,7 +67,6 @@ def main(_):
         sv = tf.train.Supervisor(logdir="/tmp/tb_logs")
         with sv.managed_session() as sess:
             sess.run(initializer)
-            # model = create_model(config, sess)
             learning_rate = config.learning_rate
             lr_decay = config.lr_decay
             logging.info('Model creation completed.')
