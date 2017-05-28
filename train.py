@@ -91,7 +91,7 @@ def main(_):
                 print 'a step training...'
                 step_loss, _, accuracy = model.step(sess, inputs, targets, seq_lengths, True)
                 print 'a step trained'
-                steps_per_checkpoint = 2  # TODO: 100
+                steps_per_checkpoint = 100
                 step_time += (time.time() - start_time) / steps_per_checkpoint
                 loss += step_loss / steps_per_checkpoint
                 # Once in a while, we run evals.
