@@ -55,7 +55,7 @@ def main(_):
         with tf.name_scope("Train"):
             with tf.variable_scope("Model", reuse=None):
                 model = SentimentModel(config, sent_input, True)
-            # tf.summary.scalar("training_loss", model.mean_loss)
+            tf.summary.scalar("training_loss", model.cost)
             # tf.summary.scalar("training_accuracy", model.accuracy)
             # tf.summary.scalar("learning_rate", model.learning_rate)
         with tf.name_scope("Valid"):
@@ -85,7 +85,7 @@ def main(_):
             for step in xrange(1, tot_steps):
                 # Get a batch and make a step.
                 start_time = time.time()
-                inputs, targets, seq_lengths = sent_input.next_batch()
+                inputs, targets, seq_lengths = model.input_data.next_batch()
                 step_loss, _, accuracy = model.step(sess, inputs, targets, seq_lengths, True)
                 steps_per_checkpoint = 100
                 step_time += (time.time() - start_time) / steps_per_checkpoint
@@ -107,7 +107,7 @@ def main(_):
                     # Run evals on test set and print their accuracy.
                     logging.info('Running test set...')
                     for _ in xrange(len(m_valid.input_data.valid_data)):
-                        inputs, targets, seq_lengths = sent_input.next_batch(False)
+                        inputs, targets, seq_lengths = m_valid.input_data.next_batch(False)
                         valid_loss, _, accuracy = m_valid.step(
                             sess, inputs, targets, seq_lengths, False)
                         loss += valid_loss

@@ -142,9 +142,11 @@ class SentimentModel(object):
                 )
         else:
             attn_cell = lstm_cell
-
-        cell = tf.contrib.rnn.MultiRNNCell(
-            [attn_cell() for _ in range(config.num_layers)], state_is_tuple=True)
+        if config.num_layers >= 2:
+            cell = tf.contrib.rnn.MultiRNNCell(
+                [attn_cell() for _ in range(config.num_layers)], state_is_tuple=True)
+        else:
+            cell = attn_cell()
 
         initial_state = cell.zero_state(self.batch_size, tf.float32)
         with tf.variable_scope("lstm"):
