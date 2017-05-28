@@ -32,7 +32,7 @@ def main(_):
 
     # create model
     logging.info('Creating model with: Number of hidden layers: %d;'
-                 ' Number of units per layer: %d; Dropout: %f' % (
+                 ' Number of units per layer: %d; Dropout: %f.' % (
                     config.num_layers, config.embedding_dims, config.keep_prob))
     vocab_mapping = VocabMapping()
     vocab_size = vocab_mapping.get_size()
@@ -47,8 +47,8 @@ def main(_):
     num_batches = len(data) / config.batch_size
 
     logging.info("Number of training examples per batch: {0}; "
-                 "number of batches per epoch: {1}".format(config.batch_size,
-                                                           num_batches))
+                 "number of batches per epoch: {1}.".format(config.batch_size,
+                                                            num_batches))
     with tf.Graph().as_default():
         logging.info('creating model...')
         sent_input = SentimentInput(config, data)
@@ -84,13 +84,10 @@ def main(_):
             tot_steps = num_batches * config.max_epoch
             # starting at step 1 to prevent test set from running after first batch
             for step in xrange(1, tot_steps):
-                print 'step', step
                 # Get a batch and make a step.
                 start_time = time.time()
                 inputs, targets, seq_lengths = sent_input.next_batch()
-                print 'a step training...'
                 step_loss, _, accuracy = model.step(sess, inputs, targets, seq_lengths, True)
-                print 'a step trained'
                 steps_per_checkpoint = 100
                 step_time += (time.time() - start_time) / steps_per_checkpoint
                 loss += step_loss / steps_per_checkpoint

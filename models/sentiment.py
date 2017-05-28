@@ -220,9 +220,7 @@ class SentimentModel(object):
             fetches = [self.mean_loss, self.update, self.accuracy]
         else:
             fetches = [self.mean_loss, self.y, self.accuracy]
-        print 'sess running'
         outputs = session.run(fetches, feed_dict)
-        print 'ran'
         return outputs
 
     def assign_lr(self, session, lr_value):
