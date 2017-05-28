@@ -40,6 +40,10 @@ class SentimentInput(object):
         self.valid_seq_len = np.split(self.valid_seq_len, num_valid_batches)
         self.valid_batch_pointer = 0
         self.train_batch_pointer = 0
+        # self.train_data = tf.convert_to_tensor(self.train_data, dtype=tf.int32)
+        # self.train_targets = tf.convert_to_tensor(self.train_targets, dtype=tf.int32)
+        # self.valid_data = tf.convert_to_tensor(self.valid_data, dtype=tf.int32)
+        # self.valid_targets = tf.convert_to_tensor(self.valid_targets, dtype=tf.int32)
 
     def next_batch(self, is_training=True):
         """
@@ -62,14 +66,13 @@ class SentimentInput(object):
             self.train_batch_pointer += 1
             self.train_batch_pointer = self.train_batch_pointer % len(
                 self.train_data)
-            return batch_inputs, targets, seq_lengths
         else:
             batch_inputs = self.valid_data[self.valid_batch_pointer]
             targets = self.valid_targets[self.valid_batch_pointer]
             seq_lengths = self.valid_seq_len[self.valid_batch_pointer]
             self.valid_batch_pointer += 1
             self.valid_batch_pointer = self.valid_batch_pointer % len(self.valid_data)
-            return batch_inputs, targets, seq_lengths
+        return batch_inputs, targets, seq_lengths
 
 
 class SentimentModel(object):
@@ -97,17 +100,11 @@ class SentimentModel(object):
         self.num_classes = 2
         self.dropout = config.keep_prob
         self.vocab_size = config.vocab_size
-        self.learning_rate = tf.Variable(config.learning_rate, trainable=False)
-        self._new_lr = tf.placeholder(
-            tf.float32, shape=[], name="new_learning_rate")
-        self._lr_update = tf.assign(self.learning_rate, self._new_lr)
         initializer = tf.random_uniform_initializer(-1, 1)
         self.batch_pointer = 0
         self.batch_size = config.batch_size
-        self.max_grad_norm = config.max_grad_norm
-        self.global_step = tf.Variable(0, trainable=False)
+        # self.global_step = tf.Variable(0, trainable=False)
         self.max_seq_length = config.max_seq_len
-
         # seq_input: list of tensors, each tensor is size max_seq_length
         # target: a list of values between 0 and 1 indicating target scores
         # seq_lengths:the early stop lengths of each input tensor
@@ -184,19 +181,24 @@ class SentimentModel(object):
             self.accuracy = tf.reduce_mean(tf.cast(
                 self.correct_predictions, "float"))
 
+        if not is_training:
+            return
+        self.learning_rate = tf.Variable(config.learning_rate, trainable=False)
+        self._new_lr = tf.placeholder(
+            tf.float32, shape=[], name="new_learning_rate")
+        self._lr_update = tf.assign(self.learning_rate, self._new_lr)
+        self.max_grad_norm = config.max_grad_norm
         params = tf.trainable_variables()
-        if is_training:
-            with tf.name_scope("train"):
-                opt = tf.train.AdamOptimizer(self.learning_rate)
-            gradients = tf.gradients(self.losses, params)
-            clipped_gradients, norm = tf.clip_by_global_norm(
-                gradients, self.max_grad_norm)
-            with tf.name_scope("grad_norms"):
-                tf.summary.scalar("grad_norms", norm)
-            self.update = opt.apply_gradients(zip(
-                clipped_gradients, params), global_step=self.global_step)
+        opt = tf.train.AdamOptimizer(self.learning_rate)
+        gradients = tf.gradients(self.losses, params)
+        clipped_gradients, norm = tf.clip_by_global_norm(
+            gradients, self.max_grad_norm)
+        self.update = opt.apply_gradients(
+            zip(clipped_gradients, params),
+            global_step=tf.contrib.framework.get_or_create_global_step()
+        )
 
-    def step(self, session, inputs, targets, seq_lengths, is_training=False):
+    def step(self, session, inputs, targets, seq_lengths, is_training=True):
         """
         Inputs:
         session: tensorflow session
@@ -209,16 +211,18 @@ class SentimentModel(object):
         or (in forward only):
         merged_tb_vars, loss, outputs
         """
-        input_feed = {
+        feed_dict = {
             self.seq_input: inputs,
             self.target: targets,
             self.seq_lengths: seq_lengths
         }
         if is_training:
-            output_feed = [self.mean_loss, self.update, self.accuracy]
+            fetches = [self.mean_loss, self.update, self.accuracy]
         else:
-            output_feed = [self.mean_loss, self.y, self.accuracy]
-        outputs = session.run(output_feed, input_feed)
+            fetches = [self.mean_loss, self.y, self.accuracy]
+        print 'sess running'
+        outputs = session.run(fetches, feed_dict)
+        print 'ran'
         return outputs
 
     def assign_lr(self, session, lr_value):

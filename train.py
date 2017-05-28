@@ -25,18 +25,18 @@ tf.logging.set_verbosity(tf.logging.ERROR)
 path = "data/processed/"
 
 
-def main():
+def main(_):
     config = Config()
     build_data(config.max_seq_len,
                config.vocab_size)
 
     # create model
-    logging.info('\nCreating model with:\n\tNumber of hidden layers: %d\n'
-                 '\tNumber of units per layer: %d\n\tDropout: %f' % (
+    logging.info('Creating model with: Number of hidden layers: %d;'
+                 ' Number of units per layer: %d; Dropout: %f' % (
                     config.num_layers, config.embedding_dims, config.keep_prob))
     vocab_mapping = VocabMapping()
     vocab_size = vocab_mapping.get_size()
-    print "Vocab size is: {0}".format(vocab_size)
+    logging.info("Vocab size is: {0}".format(vocab_size))
     infile = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
     # randomize data order
     print infile
@@ -46,23 +46,23 @@ def main():
     logging.info('Shape of data: %s' % str(data.shape))
     num_batches = len(data) / config.batch_size
 
-    logging.info("\nNumber of training examples per batch: {0};\n"
-                 "Number of batches per epoch: {1}".format(config.batch_size,
+    logging.info("Number of training examples per batch: {0}; "
+                 "number of batches per epoch: {1}".format(config.batch_size,
                                                            num_batches))
     with tf.Graph().as_default():
         logging.info('creating model...')
         sent_input = SentimentInput(config, data)
         with tf.name_scope("Train"):
             with tf.variable_scope("Model", reuse=None):
-                model = SentimentModel(config, sent_input)
-            tf.summary.scalar("Training Loss", model.mean_loss)
-            tf.summary.scalar("Training Accuracy", model.accuracy)
-            tf.summary.scalar("Learning Rate", model.learning_rate)
+                model = SentimentModel(config, sent_input, True)
+            # tf.summary.scalar("training_loss", model.mean_loss)
+            # tf.summary.scalar("training_accuracy", model.accuracy)
+            # tf.summary.scalar("learning_rate", model.learning_rate)
         with tf.name_scope("Valid"):
             with tf.variable_scope("Model", reuse=True):
                 m_valid = SentimentModel(config, sent_input, is_training=False)
-            tf.summary.scalar("Validation Loss", m_valid.mean_loss)
-            tf.summary.scalar("Validation Accuracy", m_valid.accuracy)
+            # tf.summary.scalar("validation_loss", m_valid.mean_loss)
+            # tf.summary.scalar("validation_accuracy", m_valid.accuracy)
         initializer = tf.global_variables_initializer()
         sv = tf.train.Supervisor(logdir="/tmp/tb_logs")
         with sv.managed_session() as sess:
@@ -72,7 +72,7 @@ def main():
             lr_decay = config.lr_decay
             logging.info('Model creation completed.')
             # train model and save to checkpoint
-            logging.info('Training started...')
+            logging.info('Training...')
             print "Maximum number of epochs to train for: {0}".format(config.max_epoch)
             print "Batch size: {0}".format(config.batch_size)
             print "Starting learning rate: {0}".format(config.learning_rate)
@@ -84,18 +84,21 @@ def main():
             tot_steps = num_batches * config.max_epoch
             # starting at step 1 to prevent test set from running after first batch
             for step in xrange(1, tot_steps):
+                print 'step', step
                 # Get a batch and make a step.
                 start_time = time.time()
                 inputs, targets, seq_lengths = sent_input.next_batch()
+                print 'a step training...'
                 step_loss, _, accuracy = model.step(sess, inputs, targets, seq_lengths, True)
-                steps_per_checkpoint = 100
+                print 'a step trained'
+                steps_per_checkpoint = 2  # TODO: 100
                 step_time += (time.time() - start_time) / steps_per_checkpoint
                 loss += step_loss / steps_per_checkpoint
                 # Once in a while, we run evals.
                 if step % steps_per_checkpoint == 0:
                     # Print statistics for the previous epoch.
                     print ("global step %d learning rate %.7f step-time %.2f loss %.4f"
-                           % (model.global_step.eval(sess), model.learning_rate.eval(sess),
+                           % (step, sess.run(model.learning_rate),
                               step_time, loss))
                     # Decrease learning rate if no improvement was seen over last 3 times.
                     if len(previous_losses) > 2 and loss > max(previous_losses[-3:]):
@@ -124,4 +127,4 @@ def main():
 
 if __name__ == '__main__':
     # crash_on_ipy.init()
-    main()
+    tf.app.run()
