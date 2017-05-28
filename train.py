@@ -55,7 +55,7 @@ def main(_):
         with tf.name_scope("Train"):
             with tf.variable_scope("Model", reuse=None):
                 model = SentimentModel(config, sent_input, True)
-            tf.summary.scalar("training_loss", model.cost)
+            # tf.summary.scalar("training_loss", model.cost)
             # tf.summary.scalar("training_accuracy", model.accuracy)
             # tf.summary.scalar("learning_rate", model.learning_rate)
         with tf.name_scope("Valid"):
