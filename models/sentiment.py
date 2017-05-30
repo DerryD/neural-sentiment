@@ -148,7 +148,7 @@ class SentimentModel(object):
             cell = attn_cell()
 
         initial_state = cell.zero_state(config.batch_size, tf.float32)
-        with tf.variable_scope("lstm"):
+        with tf.variable_scope('lstm'):
             rnn_input = tf.unstack(inputs, num=self.max_seq_length, axis=1)
             rnn_output, rnn_state = tf.contrib.rnn.static_rnn(
                 cell, rnn_input,
@@ -157,14 +157,14 @@ class SentimentModel(object):
                 scope=tf.get_variable_scope()
             )
 
-        with tf.variable_scope("softmax"):
+        with tf.variable_scope('softmax'):
             softmax_w = tf.get_variable(
-                "softmax_w",
+                'softmax_w',
                 [config.hidden_size if config.use_proj
                  else config.embedding_dims, self.num_classes],
                 initializer=tf.truncated_normal_initializer(stddev=0.1))
             softmax_b = tf.get_variable(
-                "softmax_b", [self.num_classes],
+                'softmax_b', [self.num_classes],
                 initializer=tf.random_uniform_initializer(0.1))
             # we use the cell memory state for information on sentence embedding
             if config.num_layers >= 2:
@@ -175,20 +175,20 @@ class SentimentModel(object):
             self.y = tf.nn.softmax(scores)
             predictions = tf.argmax(scores, 1)
 
-        with tf.variable_scope("loss"):
+        with tf.variable_scope('loss'):
             loss = tf.nn.softmax_cross_entropy_with_logits(
                 logits=scores, labels=self.target)
             self._cost = tf.reduce_mean(loss)
 
-        with tf.variable_scope("accuracy"):
+        with tf.variable_scope('accuracy'):
             correct_predictions = tf.equal(
                 predictions, tf.argmax(self.target, 1))
             self.accuracy = tf.reduce_mean(tf.cast(
-                correct_predictions, "float"))
+                correct_predictions, 'float'))
 
         # self.str_summary_type = tf.placeholder(tf.string, name="str_summary_type")
-        loss_summ = tf.summary.scalar("loss", self.cost)
-        acc_summ = tf.summary.scalar("accuracy", self.accuracy)
+        loss_summ = tf.summary.scalar('loss', self.cost)
+        acc_summ = tf.summary.scalar('accuracy', self.accuracy)
         self.merged = tf.summary.merge([loss_summ, acc_summ])
 
         if not is_training:

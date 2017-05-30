@@ -21,7 +21,7 @@ logging.basicConfig(
     format='%(asctime)s : %(levelname)s : %(message)s',
     level=logging.INFO
 )
-tf.logging.set_verbosity(tf.logging.ERROR)
+# tf.logging.set_verbosity(tf.logging.ERROR)
 path = "data/processed/"
 tf.flags.DEFINE_float("learning_rate", 0.009, "initial learning rate")
 tf.flags.DEFINE_integer("num_layers", 2, "number of stacked LSTM cells")
@@ -79,18 +79,18 @@ def main(_):
     logging.info('Shape of data: %s' % str(data.shape))
     num_batches = len(data) / config.batch_size
 
-    logging.info("Number of training examples per batch: {0}; "
-                 "number of batches per epoch: {1}.".format(config.batch_size,
+    logging.info('Number of training examples per batch: {0}; '
+                 'number of batches per epoch: {1}.'.format(config.batch_size,
                                                             num_batches))
     with tf.Graph().as_default():
         logging.info('creating model...')
         sent_input = SentimentInput(config, data)
         initializer = tf.random_uniform_initializer(-1, 1)
-        with tf.name_scope("Train"):
-            with tf.variable_scope("Model", reuse=None, initializer=initializer):
+        with tf.name_scope('Train'):
+            with tf.variable_scope('Model', reuse=None, initializer=initializer):
                 model = SentimentModel(config, sent_input, True)
-        with tf.name_scope("Valid"):
-            with tf.variable_scope("Model", reuse=True, initializer=initializer):
+        with tf.name_scope('Valid'):
+            with tf.variable_scope('Model', reuse=True, initializer=initializer):
                 m_valid = SentimentModel(config, sent_input, is_training=False)
         global_init = tf.global_variables_initializer()
         sv = tf.train.Supervisor()
@@ -102,10 +102,10 @@ def main(_):
             logging.info('Model creation completed.')
             # train model and save to checkpoint
             logging.info('Training...')
-            print "Maximum number of epochs to train for: {0}".format(config.max_epoch)
-            print "Batch size: {0}".format(config.batch_size)
-            print "Starting learning rate: {0}".format(config.learning_rate)
-            print "Learning rate decay factor: {0}".format(config.lr_decay)
+            print 'Maximum number of epochs to train for: {0}'.format(config.max_epoch)
+            print 'Batch size: {0}'.format(config.batch_size)
+            print 'Starting learning rate: {0}'.format(config.learning_rate)
+            print 'Learning rate decay factor: {0}'.format(config.lr_decay)
 
             step_time, loss = 0.0, 0.0
             previous_losses = []
@@ -125,7 +125,7 @@ def main(_):
                 # Once in a while, we run evals.
                 if step % steps_per_checkpoint == 0:
                     # Print statistics for the previous epoch.
-                    print ("global step %d learning rate %.7f step-time %.2f loss %.4f"
+                    print ('global step %d learning rate %.7f step-time %.2f loss %.4f'
                            % (step, sess.run(model.learning_rate),
                               step_time, loss))
                     # Decrease learning rate if no improvement was seen over last 3 times.
@@ -148,9 +148,9 @@ def main(_):
                     norm_valid_accuracy = valid_accuracy / len(m_valid.input_data.valid_data)
                     # noinspection PyUnboundLocalVariable
                     writer.add_summary(valid_summary, step)
-                    print "Avg Test Loss: {0}, Avg Test Accuracy: {1}".format(
+                    print 'Avg Test Loss: {0}, Avg Test Accuracy: {1}'.format(
                         norm_valid_loss, norm_valid_accuracy)
-                    print "-------Step {0}/{1}------".format(step, tot_steps)
+                    print '-------Step {0}/{1}------'.format(step, tot_steps)
                     loss = 0.0
                     sys.stdout.flush()
 
