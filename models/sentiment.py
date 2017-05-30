@@ -129,7 +129,6 @@ class SentimentModel(object):
             return tf.contrib.rnn.LSTMCell(
                 config.embedding_dims,
                 initializer=initializer,
-                state_is_tuple=True,
                 reuse=tf.get_variable_scope().reuse)
 
         if is_training and self.dropout < 1:
@@ -147,9 +146,6 @@ class SentimentModel(object):
                 [attn_cell() for _ in range(config.num_layers)], state_is_tuple=True)
         else:
             cell = attn_cell()
-
-        # cell = tf.contrib.rnn.MultiRNNCell(
-        #     [attn_cell() for _ in range(config.num_layers)], state_is_tuple=True)
 
         initial_state = cell.zero_state(config.batch_size, tf.float32)
         with tf.variable_scope("lstm"):
