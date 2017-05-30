@@ -57,6 +57,9 @@ def main(_):
     logging.info('Creating model with: Number of hidden layers: %d;'
                  ' Number of units per layer: %d; Dropout: %f.' % (
                     config.num_layers, config.embedding_dims, config.keep_prob))
+    log_dir = "/tmp/tb_logs/emb-size-{:d}_num-layers-{:d}_keep-prob-{:f}".format(
+        FLAGS.embedding_dims, FLAGS.num_layers, FLAGS.keep_prob)
+    logging.info('To visualize on tensorboard, run:\ntensorboard --logdir=%s' % log_dir)
     vocab_mapping = VocabMapping()
     vocab_size = vocab_mapping.get_size()
     logging.info("Vocab size is: {0}".format(vocab_size))
@@ -90,11 +93,7 @@ def main(_):
         sv = tf.train.Supervisor()
         with sv.managed_session() as sess:
             sess.run(initializer)
-            writer = tf.summary.FileWriter(
-                "/tmp/tb_logs/emb-size-{:d}_num-layers-"
-                "{:d}_keep-prob-{:f}".format(
-                    FLAGS.embedding_dims, FLAGS.num_layers, FLAGS.keep_prob),
-                sess.graph)
+            writer = tf.summary.FileWriter(log_dir, sess.graph)
             learning_rate = config.learning_rate
             lr_decay = config.lr_decay
             logging.info('Model creation completed.')
