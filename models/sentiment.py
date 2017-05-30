@@ -161,10 +161,10 @@ class SentimentModel(object):
             )
 
         with tf.variable_scope("softmax"):
-            # noinspection PyPep8Naming
             softmax_w = tf.get_variable(
                 "softmax_w",
-                [config.embedding_dims, self.num_classes],
+                [config.hidden_size if config.use_proj
+                 else config.embedding_dims, self.num_classes],
                 initializer=tf.truncated_normal_initializer(stddev=0.1))
             softmax_b = tf.get_variable(
                 "softmax_b", [self.num_classes],
