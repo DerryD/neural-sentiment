@@ -25,7 +25,7 @@ tf.logging.set_verbosity(tf.logging.ERROR)
 path = "data/processed/"
 tf.flags.DEFINE_float("learning_rate", 0.009, "initial learning rate")
 tf.flags.DEFINE_integer("num_layers", 2, "number of stacked LSTM cells")
-tf.flags.DEFINE_integer("embedding_dims", 100, "embedded size")
+tf.flags.DEFINE_integer("embedding_dims", 50, "embedded size")
 tf.flags.DEFINE_float("keep_prob", 0.5, "keeping probability in dropout")
 tf.flags.DEFINE_float("lr_decay", 0.7, "learning rate decay")
 tf.flags.DEFINE_integer("batch_size", 200, "number of batches per epoch")
@@ -90,7 +90,11 @@ def main(_):
         sv = tf.train.Supervisor()
         with sv.managed_session() as sess:
             sess.run(initializer)
-            writer = tf.summary.FileWriter("/tmp/tb_logs", sess.graph)
+            writer = tf.summary.FileWriter(
+                "/tmp/tb_logs/emb-size-{:d}_num-layers-"
+                "{:d}_keep-prob-{:f}".format(
+                    FLAGS.embedding_dims, FLAGS.num_layers, FLAGS.keep_prob),
+                sess.graph)
             learning_rate = config.learning_rate
             lr_decay = config.lr_decay
             logging.info('Model creation completed.')
