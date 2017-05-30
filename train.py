@@ -54,12 +54,12 @@ def main(_):
                config.vocab_size)
 
     # create model
-    logging.info('Creating model with: Number of hidden layers: %d;'
-                 ' Number of units per layer: %d; Dropout: %f.' % (
-                    config.num_layers, config.embedding_dims, config.keep_prob))
-    log_dir = "/tmp/tb_logs/emb-size-{:d}_num-layers-{:d}_keep-prob-{:f}".format(
+    tb_log_dir = "/tmp/tb_logs/emb-size-{:d}_num-layers-{:d}_keep-prob-{:.2f}".format(
         FLAGS.embedding_dims, FLAGS.num_layers, FLAGS.keep_prob)
-    logging.info('To visualize on tensorboard, run:\ntensorboard --logdir=%s' % log_dir)
+    logging.info('To visualize on tensorboard, run:\ntensorboard --logdir=%s' % tb_log_dir)
+    logging.info('Creating model with: Number of hidden layers: %d;'
+                 ' Number of units per layer: %d; Dropout: %.2f.' % (
+                     config.num_layers, config.embedding_dims, config.keep_prob))
     vocab_mapping = VocabMapping()
     vocab_size = vocab_mapping.get_size()
     logging.info("Vocab size is: {0}".format(vocab_size))
@@ -78,22 +78,23 @@ def main(_):
     with tf.Graph().as_default():
         logging.info('creating model...')
         sent_input = SentimentInput(config, data)
+        initializer = tf.random_uniform_initializer(-1, 1)
         with tf.name_scope("Train"):
-            with tf.variable_scope("Model", reuse=None):
+            with tf.variable_scope("Model", reuse=None, initializer=initializer):
                 model = SentimentModel(config, sent_input, True)
             # tf.summary.scalar("training_loss", model.cost)
             # tf.summary.scalar("training_accuracy", model.accuracy)
             # tf.summary.scalar("learning_rate", model.learning_rate)
         with tf.name_scope("Valid"):
-            with tf.variable_scope("Model", reuse=True):
+            with tf.variable_scope("Model", reuse=True, initializer=initializer):
                 m_valid = SentimentModel(config, sent_input, is_training=False)
             # tf.summary.scalar("validation_loss", m_valid.mean_loss)
             # tf.summary.scalar("validation_accuracy", m_valid.accuracy)
-        initializer = tf.global_variables_initializer()
+        global_init = tf.global_variables_initializer()
         sv = tf.train.Supervisor()
         with sv.managed_session() as sess:
-            sess.run(initializer)
-            writer = tf.summary.FileWriter(log_dir, sess.graph)
+            sess.run(global_init)
+            writer = tf.summary.FileWriter(tb_log_dir, sess.graph)
             learning_rate = config.learning_rate
             lr_decay = config.lr_decay
             logging.info('Model creation completed.')

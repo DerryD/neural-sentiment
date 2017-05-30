@@ -100,7 +100,6 @@ class SentimentModel(object):
         self.num_classes = 2
         self.dropout = config.keep_prob
         self.vocab_size = config.vocab_size
-        initializer = tf.random_uniform_initializer(-1, 1)
         self.batch_pointer = 0
         # self.global_step = tf.Variable(0, trainable=False)
         self.max_seq_length = config.max_seq_len
@@ -117,8 +116,7 @@ class SentimentModel(object):
             # noinspection PyPep8Naming
             embedding = tf.get_variable(
                 name="embedding",
-                shape=[self.vocab_size, config.embedding_dims],
-                initializer=initializer
+                shape=[self.vocab_size, config.embedding_dims]
             )
             inputs = tf.nn.embedding_lookup(embedding, self.seq_input)
             if is_training and self.dropout < 1:
@@ -128,7 +126,6 @@ class SentimentModel(object):
         def lstm_cell():
             return tf.contrib.rnn.LSTMCell(
                 config.embedding_dims,
-                initializer=initializer,
                 reuse=tf.get_variable_scope().reuse)
 
         if is_training and self.dropout < 1:
