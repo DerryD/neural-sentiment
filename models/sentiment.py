@@ -134,15 +134,12 @@ class SentimentModel(object):
                     num_units=config.embedding_dims,
                     reuse=tf.get_variable_scope().reuse)
 
-        def attn_cell():
-            if is_training and self.dropout < 1:
+        if is_training and config.keep_prob < 1:
+            def attn_cell():
                 return tf.contrib.rnn.DropoutWrapper(
-                    lstm_cell(),
-                    # input_keep_prob=config.keep_prob,
-                    output_keep_prob=config.keep_prob
-                )
-            else:
-                return lstm_cell()
+                    lstm_cell(), output_keep_prob=config.keep_prob)
+        else:
+            attn_cell = lstm_cell
 
         if config.num_layers >= 2:
             cell = tf.contrib.rnn.MultiRNNCell(
