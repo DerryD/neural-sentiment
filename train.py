@@ -26,9 +26,11 @@ path = "data/processed/"
 tf.flags.DEFINE_float("learning_rate", 0.009, "initial learning rate")
 tf.flags.DEFINE_integer("num_layers", 2, "number of stacked LSTM cells")
 tf.flags.DEFINE_integer("embedding_dims", 50, "embedded size")
+tf.flags.DEFINE_integer("hidden_size", 80, "size of memory cell when using projection")
 tf.flags.DEFINE_float("keep_prob", 0.5, "keeping probability in dropout")
 tf.flags.DEFINE_float("lr_decay", 0.7, "learning rate decay")
 tf.flags.DEFINE_integer("batch_size", 200, "number of batches per epoch")
+tf.flags.DEFINE_boolean("use_proj", True, "whether to use LSTM cells with projection")
 
 FLAGS = tf.flags.FLAGS
 
@@ -39,6 +41,9 @@ class Config(object):
         self.max_grad_norm = 5
         self.num_layers = FLAGS.num_layers          # number of stacked LSTM cells
         self.embedding_dims = FLAGS.embedding_dims  # embedded size
+        self.use_proj = FLAGS.use_proj
+        if self.use_proj:
+            self.hidden_size = FLAGS.hidden_size
         self.max_epoch = 50         # Number of epochs for iteration
         self.keep_prob = FLAGS.keep_prob
         self.lr_decay = FLAGS.lr_decay
@@ -82,14 +87,9 @@ def main(_):
         with tf.name_scope("Train"):
             with tf.variable_scope("Model", reuse=None, initializer=initializer):
                 model = SentimentModel(config, sent_input, True)
-            # tf.summary.scalar("training_loss", model.cost)
-            # tf.summary.scalar("training_accuracy", model.accuracy)
-            # tf.summary.scalar("learning_rate", model.learning_rate)
         with tf.name_scope("Valid"):
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
                 m_valid = SentimentModel(config, sent_input, is_training=False)
-            # tf.summary.scalar("validation_loss", m_valid.mean_loss)
-            # tf.summary.scalar("validation_accuracy", m_valid.accuracy)
         global_init = tf.global_variables_initializer()
         sv = tf.train.Supervisor()
         with sv.managed_session() as sess:

@@ -124,19 +124,25 @@ class SentimentModel(object):
                     inputs, config.keep_prob)
 
         def lstm_cell():
-            return tf.contrib.rnn.LSTMCell(
-                config.embedding_dims,
-                reuse=tf.get_variable_scope().reuse)
+            if config.use_proj:
+                return tf.contrib.rnn.LSTMCell(
+                    num_units=config.hidden_size,    # n, size of $$ c_t $$
+                    num_proj=config.embedding_dims,  # p, size of $$ h_t $$
+                    reuse=tf.get_variable_scope().reuse)
+            else:
+                return tf.contrib.rnn.LSTMCell(
+                    num_units=config.embedding_dims,
+                    reuse=tf.get_variable_scope().reuse)
 
-        if is_training and self.dropout < 1:
-            def attn_cell():
+        def attn_cell():
+            if is_training and self.dropout < 1:
                 return tf.contrib.rnn.DropoutWrapper(
                     lstm_cell(),
                     # input_keep_prob=config.keep_prob,
                     output_keep_prob=config.keep_prob
                 )
-        else:
-            attn_cell = lstm_cell
+            else:
+                return lstm_cell
 
         if config.num_layers >= 2:
             cell = tf.contrib.rnn.MultiRNNCell(
@@ -162,7 +168,7 @@ class SentimentModel(object):
                 initializer=tf.truncated_normal_initializer(stddev=0.1))
             softmax_b = tf.get_variable(
                 "softmax_b", [self.num_classes],
-                initializer=tf.constant_initializer(0.1))
+                initializer=tf.random_uniform_initializer(0.1))
             # we use the cell memory state for information on sentence embedding
             if config.num_layers >= 2:
                 scores = tf.nn.xw_plus_b(rnn_state[-1][0], softmax_w, softmax_b)
