@@ -102,7 +102,6 @@ class SentimentModel(object):
         self.vocab_size = config.vocab_size
         initializer = tf.random_uniform_initializer(-1, 1)
         self.batch_pointer = 0
-        self.batch_size = config.batch_size
         # self.global_step = tf.Variable(0, trainable=False)
         self.max_seq_length = config.max_seq_len
         # seq_input: list of tensors, each tensor is size max_seq_length
@@ -142,13 +141,17 @@ class SentimentModel(object):
                 )
         else:
             attn_cell = lstm_cell
+
         if config.num_layers >= 2:
             cell = tf.contrib.rnn.MultiRNNCell(
                 [attn_cell() for _ in range(config.num_layers)], state_is_tuple=True)
         else:
             cell = attn_cell()
 
-        initial_state = cell.zero_state(self.batch_size, tf.float32)
+        # cell = tf.contrib.rnn.MultiRNNCell(
+        #     [attn_cell() for _ in range(config.num_layers)], state_is_tuple=True)
+
+        initial_state = cell.zero_state(config.batch_size, tf.float32)
         with tf.variable_scope("lstm"):
             rnn_input = tf.unstack(inputs, num=self.max_seq_length, axis=1)
             rnn_output, rnn_state = tf.contrib.rnn.static_rnn(
@@ -168,7 +171,11 @@ class SentimentModel(object):
                 "softmax_b", [self.num_classes],
                 initializer=tf.constant_initializer(0.1))
             # we use the cell memory state for information on sentence embedding
-            scores = tf.nn.xw_plus_b(rnn_state[-1][0], softmax_w, softmax_b)
+            if config.num_layers >= 2:
+                scores = tf.nn.xw_plus_b(rnn_state[-1][0], softmax_w, softmax_b)
+            else:
+                scores = tf.nn.xw_plus_b(rnn_state[-1], softmax_w, softmax_b)
+                # scores = tf.nn.xw_plus_b(rnn_output[-1], softmax_w, softmax_b)
             self.y = tf.nn.softmax(scores)
             predictions = tf.argmax(scores, 1)
 
@@ -197,10 +204,10 @@ class SentimentModel(object):
         params = tf.trainable_variables()
         opt = tf.train.AdamOptimizer(self.learning_rate)
         gradients = tf.gradients(loss, params)
-        clipped_gradients, norm = tf.clip_by_global_norm(
-            gradients, config.max_grad_norm)
+        if config.max_grad_norm is not None:
+            gradients, norm = tf.clip_by_global_norm(gradients, config.max_grad_norm)
         self.update = opt.apply_gradients(
-            zip(clipped_gradients, params),
+            zip(gradients, params),
             global_step=tf.contrib.framework.get_or_create_global_step()
         )
         lr_summ = tf.summary.scalar("learning_rate", self.learning_rate)

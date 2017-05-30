@@ -12,7 +12,6 @@ import os
 import time
 import tensorflow as tf
 from utils.data_processor import build_data
-from utils.config import Config
 from models.sentiment import SentimentModel, SentimentInput
 from utils.vocab_mapping import VocabMapping
 # import crash_on_ipy
@@ -24,6 +23,29 @@ logging.basicConfig(
 )
 tf.logging.set_verbosity(tf.logging.ERROR)
 path = "data/processed/"
+tf.flags.DEFINE_float("learning_rate", 0.009, "initial learning rate")
+tf.flags.DEFINE_integer("num_layers", 2, "number of stacked LSTM cells")
+tf.flags.DEFINE_integer("embedding_dims", 100, "embedded size")
+tf.flags.DEFINE_float("keep_prob", 0.009, "keeping probability in dropout")
+tf.flags.DEFINE_float("lr_decay", 0.8, "learning rate decay")
+tf.flags.DEFINE_integer("batch_size", 200, "number of batches per epoch")
+
+FLAGS = tf.flags.FLAGS
+
+
+class Config(object):
+    def __init__(self):
+        self.learning_rate = FLAGS.learning_rate    # 0.001
+        self.max_grad_norm = 5
+        self.num_layers = FLAGS.num_layers          # number of stacked LSTM cells
+        self.embedding_dims = FLAGS.embedding_dims  # embedded size
+        self.max_epoch = 50         # Number of epochs for iteration
+        self.keep_prob = FLAGS.keep_prob
+        self.lr_decay = FLAGS.lr_decay
+        self.batch_size = FLAGS.batch_size
+        self.num_classes = 2
+        self.vocab_size = 20000
+        self.max_seq_len = 200
 
 
 def main(_):
@@ -83,13 +105,14 @@ def main(_):
             previous_losses = []
             # Total number of batches to pass through.
             tot_steps = num_batches * config.max_epoch
+            steps_per_checkpoint = num_batches
             # starting at step 1 to prevent test set from running after first batch
             for step in xrange(1, tot_steps):
                 # Get a batch and make a step.
                 start_time = time.time()
                 inputs, targets, seq_lengths = model.input_data.next_batch()
-                step_loss, _, accuracy, train_summary = model.step(sess, inputs, targets, seq_lengths, True)
-                steps_per_checkpoint = 100
+                step_loss, _, accuracy, train_summary = model.step(
+                    sess, inputs, targets, seq_lengths, True)
                 step_time += (time.time() - start_time) / steps_per_checkpoint
                 loss += step_loss / steps_per_checkpoint
                 writer.add_summary(train_summary, step)

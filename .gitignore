@@ -5,3 +5,4 @@ config.ini
 utils/hyperparams.py
 sample.py
 crash_on_ipy.py
+utils/config.py
