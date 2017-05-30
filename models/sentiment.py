@@ -142,7 +142,7 @@ class SentimentModel(object):
                     output_keep_prob=config.keep_prob
                 )
             else:
-                return lstm_cell
+                return lstm_cell()
 
         if config.num_layers >= 2:
             cell = tf.contrib.rnn.MultiRNNCell(
