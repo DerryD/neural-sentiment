@@ -61,6 +61,8 @@ def main(_):
     # create model
     tb_log_dir = "/tmp/tb_logs/emb-size-{:d}_num-layers-{:d}_keep-prob-{:.2f}".format(
         FLAGS.embedding_dims, FLAGS.num_layers, FLAGS.keep_prob)
+    if config.use_proj:
+        tb_log_dir += '_use-proj'
     logging.info('To visualize on tensorboard, run:\ntensorboard --logdir=%s' % tb_log_dir)
     logging.info('Creating model with: Number of hidden layers: %d;'
                  ' Number of units per layer: %d; Dropout: %.2f.' % (
