@@ -12,32 +12,35 @@ class SentimentInput(object):
         one_hot = np.zeros((len(targets), 2))
         one_hot[np.arange(len(targets)), targets] = 1
         sequence_lengths = data[:, -1]
+        # tokenized text data
         data = data[:, :-2]
+        # training data
         self.train_data = data[train_start_end_index[0]: train_start_end_index[1]]
+        # validation data
         self.valid_data = data[valid_start_end_index[0]:valid_start_end_index[1]]
-        self.valid_num_batch = len(self.valid_data) / self.batch_size
-        num_train_batches = len(self.train_data) / self.batch_size
-        num_valid_batches = len(self.valid_data) / self.batch_size
+        self.num_train_batches = len(self.train_data) // self.batch_size
+        self.num_valid_batches = len(self.valid_data) // self.batch_size
         train_cutoff = len(self.train_data) - (len(self.train_data) % self.batch_size)
         valid_cutoff = len(self.valid_data) - (len(self.valid_data) % self.batch_size)
+        # cut off data
         self.train_data = self.train_data[:train_cutoff]
         self.valid_data = self.valid_data[:valid_cutoff]
-
+        # sequence lengths
         self.train_sequence_lengths = \
             sequence_lengths[train_start_end_index[0]: train_start_end_index[1]][:train_cutoff]
-        self.train_sequence_lengths = np.split(self.train_sequence_lengths, num_train_batches)
+        self.train_sequence_lengths = np.split(self.train_sequence_lengths, self.num_train_batches)
         self.train_targets = one_hot[train_start_end_index[0]: train_start_end_index[1]][:train_cutoff]
-        self.train_targets = np.split(self.train_targets, num_train_batches)
-        self.train_data = np.split(self.train_data, num_train_batches)
+        self.train_targets = np.split(self.train_targets, self.num_train_batches)
+        self.train_data = np.split(self.train_data, self.num_train_batches)
 
         print "Validation size is: {0}, splitting into {1} batches".format(
-            len(self.valid_data), num_valid_batches)
-        self.valid_data = np.split(self.valid_data, num_valid_batches)
+            len(self.valid_data), self.num_valid_batches)
+        self.valid_data = np.split(self.valid_data, self.num_valid_batches)
         self.valid_targets = one_hot[valid_start_end_index[0]: valid_start_end_index[1]][:valid_cutoff]
-        self.valid_targets = np.split(self.valid_targets, num_valid_batches)
+        self.valid_targets = np.split(self.valid_targets, self.num_valid_batches)
         self.valid_seq_len = \
             sequence_lengths[valid_start_end_index[0]: valid_start_end_index[1]][:valid_cutoff]
-        self.valid_seq_len = np.split(self.valid_seq_len, num_valid_batches)
+        self.valid_seq_len = np.split(self.valid_seq_len, self.num_valid_batches)
         self.valid_batch_pointer = 0
         self.train_batch_pointer = 0
         # self.train_data = tf.convert_to_tensor(self.train_data, dtype=tf.int32)
@@ -167,7 +170,6 @@ class SentimentModel(object):
             self.accuracy = tf.reduce_mean(tf.cast(
                 correct_predictions, 'float'))
 
-        # self.str_summary_type = tf.placeholder(tf.string, name="str_summary_type")
         loss_summ = tf.summary.scalar('loss', self.cost)
         acc_summ = tf.summary.scalar('accuracy', self.accuracy)
         self.merged = tf.summary.merge([loss_summ, acc_summ])
@@ -190,7 +192,7 @@ class SentimentModel(object):
         lr_summ = tf.summary.scalar("learning_rate", self.learning_rate)
         self.merged = tf.summary.merge([loss_summ, acc_summ, lr_summ])
 
-    def step(self, session, inputs, targets, seq_lengths, is_training=True):
+    def run_batch(self, session, inputs, targets, seq_lengths, is_training=True):
         """
         Inputs:
         session: tensorflow session

@@ -7,7 +7,6 @@ rm -rf /tmp/tb_logs
 """
 from six.moves import xrange
 import numpy as np
-import sys
 import os
 import time
 import tensorflow as tf
@@ -70,14 +69,13 @@ def main(_):
     np.random.shuffle(data)
     # data = data[:1000]
     logging.info('Shape of data: %s' % str(data.shape))
-    num_batches = len(data) / config.batch_size
-
+    sent_input = SentimentInput(config, data)
+    batches_per_epoch = sent_input.num_train_batches
     logging.info('Number of training examples per batch: {0}; '
                  'number of batches per epoch: {1}.'.format(config.batch_size,
-                                                            num_batches))
+                                                            batches_per_epoch))
     with tf.Graph().as_default():
         logging.info('creating model...')
-        sent_input = SentimentInput(config, data)
         initializer = tf.random_uniform_initializer(-1, 1)
         with tf.name_scope('Train'):
             with tf.variable_scope('Model', reuse=None, initializer=initializer):
@@ -95,56 +93,55 @@ def main(_):
             logging.info('Model creation completed.')
             # train model and save to checkpoint
             logging.info('Training...')
-            print 'Maximum number of epochs to train for: {0}'.format(config.max_epoch)
+            epoch_num = config.max_epoch
+            print 'Maximum number of epochs to train for: {0}'.format(epoch_num)
             print 'Batch size: {0}'.format(config.batch_size)
             print 'Starting learning rate: {0}'.format(config.learning_rate)
             print 'Learning rate decay factor: {0}'.format(config.lr_decay)
-
-            step_time, loss = 0.0, 0.0
+            batch_time, train_loss = 0.0, 0.0
             previous_losses = []
             # Total number of batches to pass through.
             step = 0
             # starting at step 1 to prevent test set from running after first batch
-            for epoch in range(config.max_epoch):
-                for batch in range(num_batches):
+            for epoch in range(epoch_num):
+                for batch in range(batches_per_epoch):
                     step += 1
                     # Get a batch and make a step.
                     start_time = time.time()
                     inputs, targets, seq_lengths = model.input_data.next_batch()
-                    step_loss, _, accuracy, train_summary = model.step(
+                    batch_loss, _, accuracy, train_summary = model.run_batch(
                         sess, inputs, targets, seq_lengths, True)
-                    step_time += (time.time() - start_time) / num_batches
-                    loss += step_loss / num_batches
+                    # average training time for each batch
+                    batch_time += (time.time() - start_time) / batches_per_epoch
+                    train_loss += batch_loss / batches_per_epoch
                     writer.add_summary(train_summary, step)
                     # Once in a while, we run evals.
                 # Print statistics for the previous epoch.
-                logging.info('Training @ epoch %d: learning rate %.7f, step-time %.2f, loss %.4f'
-                             % (epoch, sess.run(model.learning_rate),
-                                step_time, loss))
+                logging.info('Epoch [%d/%d]: learning rate %.7f, step-time %.2f, loss %.4f'
+                             % (epoch, epoch_num, sess.run(model.learning_rate),
+                                batch_time, train_loss))
                 # Decrease learning rate if no improvement was seen over last 3 times.
-                if len(previous_losses) > 2 and loss > max(previous_losses[-3:]):
+                if len(previous_losses) > 2 and train_loss > max(previous_losses[-3:]):
                     # sess.run(model.learning_rate_decay_op)
                     learning_rate *= lr_decay
                     model.assign_lr(sess, learning_rate)
-                previous_losses.append(loss)
+                previous_losses.append(train_loss)
                 # Save checkpoint and zero timer and loss.
-                step_time, loss, valid_accuracy = 0.0, 0.0, 0.0
+                batch_time, val_loss, val_acc = 0.0, 0.0, 0.0
                 # Run evals on test set and print their accuracy.
-                logging.info('Running test set...')
-                for _ in xrange(len(m_valid.input_data.valid_data)):
+                for _ in xrange(m_valid.input_data.num_valid_batches):
                     inputs, targets, seq_lengths = m_valid.input_data.next_batch(False)
-                    valid_loss, _, accuracy, valid_summary = m_valid.step(
+                    valid_loss, _, valid_accuracy, valid_summary = m_valid.run_batch(
                         sess, inputs, targets, seq_lengths, False)
-                    loss += valid_loss
-                    valid_accuracy += accuracy
-                norm_valid_loss = loss / len(m_valid.input_data.valid_data)
-                norm_valid_accuracy = valid_accuracy / len(m_valid.input_data.valid_data)
+                    val_loss += valid_loss
+                    val_acc += valid_accuracy
+                norm_valid_loss = val_loss / m_valid.input_data.num_valid_batches
+                norm_valid_accuracy = val_acc / m_valid.input_data.num_valid_batches
                 # noinspection PyUnboundLocalVariable
                 writer.add_summary(valid_summary, step)
                 logging.info('Avg Test Loss: {0}, Avg Test Accuracy: {1}'.format(
                     norm_valid_loss, norm_valid_accuracy))
-                loss = 0.0
-                sys.stdout.flush()
+                train_loss = 0.0
 
 
 if __name__ == '__main__':
