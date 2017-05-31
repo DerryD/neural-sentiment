@@ -161,7 +161,7 @@ class SentimentModel(object):
                 initializer=tf.truncated_normal_initializer(stddev=0.1))
             softmax_b = tf.get_variable(
                 'softmax_b', [self.num_classes],
-                initializer=tf.constant_initializer(1.5))
+                initializer=tf.constant_initializer(0.1))
             # use constant initializer to avoid log zero
             # we use the cell memory state for information on sentence embedding
             if config.num_layers >= 2:
