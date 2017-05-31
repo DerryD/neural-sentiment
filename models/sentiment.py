@@ -181,7 +181,7 @@ class SentimentModel(object):
             tf.float32, shape=[], name="new_learning_rate")
         self._lr_update = tf.assign(self.learning_rate, self._new_lr)
         params = tf.trainable_variables()
-        opt = tf.train.AdamOptimizer(self.learning_rate)
+        opt = tf.train.AdadeltaOptimizer(self.learning_rate)
         gradients = tf.gradients(loss, params)
         if config.max_grad_norm is not None:
             gradients, norm = tf.clip_by_global_norm(gradients, config.max_grad_norm)

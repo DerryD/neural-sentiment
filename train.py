@@ -28,7 +28,6 @@ tf.flags.DEFINE_integer("embedding_dims", 50, "embedded size")
 tf.flags.DEFINE_float("keep_prob", 0.5, "keeping probability in dropout")
 tf.flags.DEFINE_float("lr_decay", 0.7, "learning rate decay")
 tf.flags.DEFINE_integer("batch_size", 200, "number of batches per epoch")
-
 FLAGS = tf.flags.FLAGS
 
 
@@ -56,8 +55,8 @@ def main(_):
     tb_log_dir = '/tmp/tb_logs/emb-size-{:d}_num-layers-{:d}_keep-prob-{:.2f}'.format(
         FLAGS.embedding_dims, FLAGS.num_layers, FLAGS.keep_prob)
     logging.info('To visualize on tensorboard, run:\ntensorboard --logdir=%s' % tb_log_dir)
-    logging.info('Creating model with: Number of hidden layers: %d;'
-                 ' Number of units per layer: %d; Dropout: %.2f.' % (
+    logging.info('Model params: number of hidden layers: %d;'
+                 ' number of units per layer: %d; dropout: %.2f.' % (
                      config.num_layers, config.embedding_dims, config.keep_prob))
     vocab_mapping = VocabMapping()
     vocab_size = vocab_mapping.get_size()
@@ -92,7 +91,6 @@ def main(_):
             lr_decay = config.lr_decay
             logging.info('Model creation completed.')
             # train model and save to checkpoint
-            logging.info('Training...')
             epoch_num = config.max_epoch
             print 'Maximum number of epochs to train for: {0}'.format(epoch_num)
             print 'Batch size: {0}'.format(config.batch_size)
@@ -102,6 +100,7 @@ def main(_):
             previous_losses = []
             # Total number of batches to pass through.
             step = 0
+            logging.info('Training...')
             # starting at step 1 to prevent test set from running after first batch
             for epoch in range(epoch_num):
                 for batch in range(batches_per_epoch):
