@@ -151,7 +151,8 @@ class FGRUCell(RNNCell):
                     num_or_size_splits=2,
                     axis=1)
             with vs.variable_scope("candidate"):
-                fact = linear([inputs, r * state], self._factor_size, False)
+                with vs.variable_scope("factor"):
+                    fact = linear([inputs, r * state], self._factor_size, False)
                 c = self._activation(linear(fact, self._num_units, True))
             new_h = u * state + (1 - u) * c
         return new_h, new_h

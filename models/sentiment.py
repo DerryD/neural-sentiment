@@ -145,7 +145,7 @@ class SentimentModel(object):
             cell = attn_cell()
 
         initial_state = cell.zero_state(config.batch_size, tf.float32)
-        with tf.variable_scope('lstm'):
+        with tf.variable_scope('rnn'):
             rnn_input = tf.unstack(inputs, num=self.max_seq_length, axis=1)
             rnn_output, rnn_state = tf.contrib.rnn.static_rnn(
                 cell, rnn_input,
