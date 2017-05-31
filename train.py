@@ -22,29 +22,24 @@ logging.basicConfig(
     level=logging.INFO
 )
 # tf.logging.set_verbosity(tf.logging.ERROR)
-path = "data/processed/"
-tf.flags.DEFINE_float("learning_rate", 0.009, "initial learning rate")
+path = 'data/processed/'
+tf.flags.DEFINE_float('learning_rate', 0.009, "initial learning rate")
 tf.flags.DEFINE_integer("num_layers", 2, "number of stacked LSTM cells")
 tf.flags.DEFINE_integer("embedding_dims", 50, "embedded size")
-tf.flags.DEFINE_integer("hidden_size", 80, "size of memory cell when using projection")
 tf.flags.DEFINE_float("keep_prob", 0.5, "keeping probability in dropout")
 tf.flags.DEFINE_float("lr_decay", 0.7, "learning rate decay")
 tf.flags.DEFINE_integer("batch_size", 200, "number of batches per epoch")
-tf.flags.DEFINE_boolean("use_proj", True, "whether to use LSTM cells with projection")
 
 FLAGS = tf.flags.FLAGS
 
 
 class Config(object):
     def __init__(self):
-        self.learning_rate = FLAGS.learning_rate    # 0.001
+        self.learning_rate = FLAGS.learning_rate  # 0.001
         self.max_grad_norm = 5
-        self.num_layers = FLAGS.num_layers          # number of stacked LSTM cells
+        self.num_layers = FLAGS.num_layers  # number of stacked LSTM cells
         self.embedding_dims = FLAGS.embedding_dims  # embedded size
-        self.use_proj = FLAGS.use_proj
-        if self.use_proj:
-            self.hidden_size = FLAGS.hidden_size
-        self.max_epoch = 50         # Number of epochs for iteration
+        self.max_epoch = 50  # Number of epochs for iteration
         self.keep_prob = FLAGS.keep_prob
         self.lr_decay = FLAGS.lr_decay
         self.batch_size = FLAGS.batch_size
@@ -59,10 +54,8 @@ def main(_):
                config.vocab_size)
 
     # create model
-    tb_log_dir = "/tmp/tb_logs/emb-size-{:d}_num-layers-{:d}_keep-prob-{:.2f}".format(
+    tb_log_dir = '/tmp/tb_logs/emb-size-{:d}_num-layers-{:d}_keep-prob-{:.2f}'.format(
         FLAGS.embedding_dims, FLAGS.num_layers, FLAGS.keep_prob)
-    if config.use_proj:
-        tb_log_dir += '_use-proj'
     logging.info('To visualize on tensorboard, run:\ntensorboard --logdir=%s' % tb_log_dir)
     logging.info('Creating model with: Number of hidden layers: %d;'
                  ' Number of units per layer: %d; Dropout: %.2f.' % (
@@ -93,8 +86,8 @@ def main(_):
             with tf.variable_scope('Model', reuse=True, initializer=initializer):
                 m_valid = SentimentModel(config, sent_input, is_training=False)
         global_init = tf.global_variables_initializer()
-        sv = tf.train.Supervisor()
-        with sv.managed_session() as sess:
+        # sv = tf.train.Supervisor()  # logdir=tb_log_dir
+        with tf.Session() as sess:
             sess.run(global_init)
             writer = tf.summary.FileWriter(tb_log_dir, sess.graph)
             learning_rate = config.learning_rate
@@ -110,49 +103,48 @@ def main(_):
             step_time, loss = 0.0, 0.0
             previous_losses = []
             # Total number of batches to pass through.
-            tot_steps = num_batches * config.max_epoch
-            steps_per_checkpoint = num_batches
+            step = 0
             # starting at step 1 to prevent test set from running after first batch
-            for step in xrange(1, tot_steps):
-                # Get a batch and make a step.
-                start_time = time.time()
-                inputs, targets, seq_lengths = model.input_data.next_batch()
-                step_loss, _, accuracy, train_summary = model.step(
-                    sess, inputs, targets, seq_lengths, True)
-                step_time += (time.time() - start_time) / steps_per_checkpoint
-                loss += step_loss / steps_per_checkpoint
-                writer.add_summary(train_summary, step)
-                # Once in a while, we run evals.
-                if step % steps_per_checkpoint == 0:
-                    # Print statistics for the previous epoch.
-                    print ('global step %d learning rate %.7f step-time %.2f loss %.4f'
-                           % (step, sess.run(model.learning_rate),
-                              step_time, loss))
-                    # Decrease learning rate if no improvement was seen over last 3 times.
-                    if len(previous_losses) > 2 and loss > max(previous_losses[-3:]):
-                        # sess.run(model.learning_rate_decay_op)
-                        learning_rate *= lr_decay
-                        model.assign_lr(sess, learning_rate)
-                    previous_losses.append(loss)
-                    # Save checkpoint and zero timer and loss.
-                    step_time, loss, valid_accuracy = 0.0, 0.0, 0.0
-                    # Run evals on test set and print their accuracy.
-                    logging.info('Running test set...')
-                    for _ in xrange(len(m_valid.input_data.valid_data)):
-                        inputs, targets, seq_lengths = m_valid.input_data.next_batch(False)
-                        valid_loss, _, accuracy, valid_summary = m_valid.step(
-                            sess, inputs, targets, seq_lengths, False)
-                        loss += valid_loss
-                        valid_accuracy += accuracy
-                    norm_valid_loss = loss / len(m_valid.input_data.valid_data)
-                    norm_valid_accuracy = valid_accuracy / len(m_valid.input_data.valid_data)
-                    # noinspection PyUnboundLocalVariable
-                    writer.add_summary(valid_summary, step)
-                    print 'Avg Test Loss: {0}, Avg Test Accuracy: {1}'.format(
-                        norm_valid_loss, norm_valid_accuracy)
-                    print '-------Step {0}/{1}------'.format(step, tot_steps)
-                    loss = 0.0
-                    sys.stdout.flush()
+            for epoch in range(config.max_epoch):
+                for batch in range(num_batches):
+                    step += 1
+                    # Get a batch and make a step.
+                    start_time = time.time()
+                    inputs, targets, seq_lengths = model.input_data.next_batch()
+                    step_loss, _, accuracy, train_summary = model.step(
+                        sess, inputs, targets, seq_lengths, True)
+                    step_time += (time.time() - start_time) / num_batches
+                    loss += step_loss / num_batches
+                    writer.add_summary(train_summary, step)
+                    # Once in a while, we run evals.
+                # Print statistics for the previous epoch.
+                logging.info('Training @ epoch %d: learning rate %.7f, step-time %.2f, loss %.4f'
+                             % (epoch, sess.run(model.learning_rate),
+                                step_time, loss))
+                # Decrease learning rate if no improvement was seen over last 3 times.
+                if len(previous_losses) > 2 and loss > max(previous_losses[-3:]):
+                    # sess.run(model.learning_rate_decay_op)
+                    learning_rate *= lr_decay
+                    model.assign_lr(sess, learning_rate)
+                previous_losses.append(loss)
+                # Save checkpoint and zero timer and loss.
+                step_time, loss, valid_accuracy = 0.0, 0.0, 0.0
+                # Run evals on test set and print their accuracy.
+                logging.info('Running test set...')
+                for _ in xrange(len(m_valid.input_data.valid_data)):
+                    inputs, targets, seq_lengths = m_valid.input_data.next_batch(False)
+                    valid_loss, _, accuracy, valid_summary = m_valid.step(
+                        sess, inputs, targets, seq_lengths, False)
+                    loss += valid_loss
+                    valid_accuracy += accuracy
+                norm_valid_loss = loss / len(m_valid.input_data.valid_data)
+                norm_valid_accuracy = valid_accuracy / len(m_valid.input_data.valid_data)
+                # noinspection PyUnboundLocalVariable
+                writer.add_summary(valid_summary, step)
+                logging.info('Avg Test Loss: {0}, Avg Test Accuracy: {1}'.format(
+                    norm_valid_loss, norm_valid_accuracy))
+                loss = 0.0
+                sys.stdout.flush()
 
 
 if __name__ == '__main__':

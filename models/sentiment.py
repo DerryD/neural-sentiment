@@ -76,25 +76,11 @@ class SentimentInput(object):
 
 
 class SentimentModel(object):
-    """
-    Sentiment Model
-    params:
-    vocab_size: size of vocabulary
-    hidden_size: number of units in a hidden layer
-    num_layers: number of hidden lstm layers
-    max_gradient_norm: maximum size of gradient
-    max_seq_length: the maximum length of the input sequence
-    learning_rate: the learning rate to use in param adjustment
-    lr_decay: rate at which to decay learning rate
-    is_training: whether to run backward pass or not
-    """
-
     def __init__(self, config, data, is_training=True):
         """
-        
-        :param config: 
+        :type config: Config
         :type data: SentimentInput
-        :param is_training: 
+        :type is_training: bool
         """
         self.input_data = data
         self.num_classes = 2
@@ -124,13 +110,7 @@ class SentimentModel(object):
                     inputs, config.keep_prob)
 
         def lstm_cell():
-            if config.use_proj:
-                return tf.contrib.rnn.LSTMCell(
-                    num_units=config.hidden_size,    # n, size of $$ c_t $$
-                    num_proj=config.embedding_dims,  # p, size of $$ h_t $$
-                    reuse=tf.get_variable_scope().reuse)
-            else:
-                return tf.contrib.rnn.LSTMCell(
+            return tf.contrib.rnn.LSTMCell(
                     num_units=config.embedding_dims,
                     reuse=tf.get_variable_scope().reuse)
 
@@ -160,15 +140,16 @@ class SentimentModel(object):
         with tf.variable_scope('softmax'):
             softmax_w = tf.get_variable(
                 'softmax_w',
-                [config.hidden_size if config.use_proj
-                 else config.embedding_dims, self.num_classes],
+                [config.embedding_dims, self.num_classes],
                 initializer=tf.truncated_normal_initializer(stddev=0.1))
             softmax_b = tf.get_variable(
                 'softmax_b', [self.num_classes],
-                initializer=tf.random_uniform_initializer(0.1))
+                initializer=tf.constant_initializer(1.5))
+            # use constant initializer to avoid log zero
             # we use the cell memory state for information on sentence embedding
             if config.num_layers >= 2:
                 scores = tf.nn.xw_plus_b(rnn_state[-1][0], softmax_w, softmax_b)
+                # scores = tf.nn.xw_plus_b(rnn_output[-1][0], softmax_w, softmax_b)
             else:
                 scores = tf.nn.xw_plus_b(rnn_state[-1], softmax_w, softmax_b)
                 # scores = tf.nn.xw_plus_b(rnn_output[-1], softmax_w, softmax_b)

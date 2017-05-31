@@ -93,8 +93,11 @@ class FLSTMCell(RNNCell):
             raise ValueError("Could not infer input size from inputs.get_shape()[-1]")
         with vs.variable_scope(scope or "flstm_cell",
                                initializer=self._initializer):
+            # Factorization
             with vs.variable_scope("factor"):
+                # multiply with W1
                 fact = linear([inputs, m_prev], self._factor_size, False)
+            # multiply with W2
             concat = linear(fact, 4 * self._num_units, True)
             # i = input_gate, j = new_input, f = forget_gate, o = output_gate
             i, j, f, o = array_ops.split(value=concat, num_or_size_splits=4, axis=1)
@@ -114,12 +117,13 @@ class FLSTMCell(RNNCell):
 class FGRUCell(RNNCell):
     """Gated Recurrent Unit cell (cf. http://arxiv.org/abs/1406.1078)."""
 
-    def __init__(self, num_units, input_size=None, activation=tanh, reuse=None):
+    def __init__(self, num_units, factor_size, input_size=None, activation=tanh, reuse=None):
         if input_size is not None:
             logging.warn("%s: The input_size parameter is deprecated.", self)
         self._num_units = num_units
         self._activation = activation
         self._reuse = reuse
+        self._factor_size = factor_size
 
     @property
     def state_size(self):
@@ -134,8 +138,11 @@ class FGRUCell(RNNCell):
         with checked_scope(self, scope or "gru_cell", reuse=self._reuse):
             with vs.variable_scope("gates"):  # Reset gate and update gate.
                 # We start with bias of 1.0 to not reset and not update.
+                with vs.variable_scope("factor"):
+                    # multiply with W1
+                    fact = linear([inputs, state], self._factor_size, False)
                 value = sigmoid(linear(
-                    [inputs, state], 2 * self._num_units, True, 1.0))
+                    fact, 2 * self._num_units, True, 1.0))
                 r, u = array_ops.split(
                     value=value,
                     num_or_size_splits=2,
@@ -147,15 +154,16 @@ class FGRUCell(RNNCell):
         return new_h, new_h
 
 
-class BasicRNNCell(RNNCell):
+class FRNNCell(RNNCell):
     """The most basic RNN cell."""
 
-    def __init__(self, num_units, input_size=None, activation=tanh, reuse=None):
+    def __init__(self, num_units, factor_size, input_size=None, activation=tanh, reuse=None):
         if input_size is not None:
             logging.warn("%s: The input_size parameter is deprecated.", self)
         self._num_units = num_units
         self._activation = activation
         self._reuse = reuse
+        self._factor_size = factor_size
 
     @property
     def state_size(self):
@@ -168,6 +176,9 @@ class BasicRNNCell(RNNCell):
     def __call__(self, inputs, state, scope=None):
         """Most basic RNN: output = new_state = act(W * input + U * state + B)."""
         with checked_scope(self, scope or "basic_rnn_cell", reuse=self._reuse):
+            with vs.variable_scope("factor"):
+                # multiply with W1
+                fact = linear([inputs, state], self._factor_size, False)
             output = self._activation(
-                linear([inputs, state], self._num_units, True))
+                linear(fact, self._num_units, True))
         return output, output
