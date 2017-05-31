@@ -28,7 +28,7 @@ tf.flags.DEFINE_integer('embedding_dims', 50, "embedded size")
 tf.flags.DEFINE_float('keep_prob', 0.5, "keeping probability in dropout")
 tf.flags.DEFINE_float('lr_decay', 0.7, "learning rate decay")
 tf.flags.DEFINE_integer('batch_size', 200, "number of batches per epoch")
-tf.flags.DEFINE_boolean('use_gru', True,
+tf.flags.DEFINE_boolean('use_gru', False,
                         'whether to use GRU instead of LSTM')
 tf.flags.DEFINE_integer('fact_size', 40, 'factor size if using factorized RNN')
 FLAGS = tf.flags.FLAGS

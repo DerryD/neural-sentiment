@@ -165,7 +165,10 @@ class SentimentModel(object):
             # use constant initializer to avoid log zero
             # we use the cell memory state for information on sentence embedding
             if config.num_layers >= 2:
-                scores = tf.nn.xw_plus_b(rnn_state[-1][0], softmax_w, softmax_b)
+                if config.use_gru:
+                    scores = tf.nn.xw_plus_b(rnn_state[-1], softmax_w, softmax_b)
+                else:
+                    scores = tf.nn.xw_plus_b(rnn_state[-1][0], softmax_w, softmax_b)
                 # scores = tf.nn.xw_plus_b(rnn_output[-1][0], softmax_w, softmax_b)
             else:
                 scores = tf.nn.xw_plus_b(rnn_state[-1], softmax_w, softmax_b)
