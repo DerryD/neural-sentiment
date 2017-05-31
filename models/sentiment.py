@@ -109,7 +109,7 @@ class SentimentModel(object):
                     inputs, config.keep_prob)
 
         def rnn_cell():
-            if config.model == 'LSTM':
+            if not config.use_gru:
                 if config.fact_size:
                     return FLSTMCell(
                         num_units=config.embedding_dims,
@@ -119,7 +119,7 @@ class SentimentModel(object):
                     return tf.contrib.rnn.LSTMCell(
                             num_units=config.embedding_dims,
                             reuse=tf.get_variable_scope().reuse)
-            elif config.model == 'GRU':
+            else:
                 if config.fact_size:
                     return FGRUCell(
                         num_units=config.embedding_dims,
