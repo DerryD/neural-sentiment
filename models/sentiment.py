@@ -3,11 +3,11 @@ import numpy as np
 
 
 class SentimentInput(object):
-    def __init__(self, config, data):
+    def __init__(self, config, data, validation_split=0.25):
         self.batch_size = config.batch_size
-        # 70/30 split for train/test
-        train_start_end_index = [0, int(0.7 * len(data))]
-        valid_start_end_index = [int(0.7 * len(data)) + 1, len(data) - 1]
+        training_split = 1 - validation_split
+        train_start_end_index = [0, int(training_split * len(data))]
+        valid_start_end_index = [int(training_split * len(data)) + 1, len(data) - 1]
         targets = data[:, -2]
         one_hot = np.zeros((len(targets), 2))
         one_hot[np.arange(len(targets)), targets] = 1
@@ -43,10 +43,6 @@ class SentimentInput(object):
         self.valid_seq_len = np.split(self.valid_seq_len, self.num_valid_batches)
         self.valid_batch_pointer = 0
         self.train_batch_pointer = 0
-        # self.train_data = tf.convert_to_tensor(self.train_data, dtype=tf.int32)
-        # self.train_targets = tf.convert_to_tensor(self.train_targets, dtype=tf.int32)
-        # self.valid_data = tf.convert_to_tensor(self.valid_data, dtype=tf.int32)
-        # self.valid_targets = tf.convert_to_tensor(self.valid_targets, dtype=tf.int32)
 
     def next_batch(self, is_training=True):
         """
@@ -102,7 +98,6 @@ class SentimentModel(object):
         self.seq_lengths = tf.placeholder(tf.int32, shape=[None])
 
         with tf.variable_scope("embedding"), tf.device("/cpu:0"):
-            # noinspection PyPep8Naming
             embedding = tf.get_variable(
                 name="embedding",
                 shape=[self.vocab_size, config.embedding_dims]
@@ -120,7 +115,9 @@ class SentimentModel(object):
         if is_training and config.keep_prob < 1:
             def attn_cell():
                 return tf.contrib.rnn.DropoutWrapper(
-                    lstm_cell(), output_keep_prob=config.keep_prob)
+                    lstm_cell(),
+                    input_keep_prob=config.keep_prob,   # comment it
+                    output_keep_prob=config.keep_prob)
         else:
             attn_cell = lstm_cell
 
@@ -181,7 +178,7 @@ class SentimentModel(object):
             tf.float32, shape=[], name="new_learning_rate")
         self._lr_update = tf.assign(self.learning_rate, self._new_lr)
         params = tf.trainable_variables()
-        opt = tf.train.AdadeltaOptimizer(self.learning_rate)
+        opt = tf.train.AdamOptimizer(self.learning_rate)
         gradients = tf.gradients(loss, params)
         if config.max_grad_norm is not None:
             gradients, norm = tf.clip_by_global_norm(gradients, config.max_grad_norm)
