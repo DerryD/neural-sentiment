@@ -23,11 +23,14 @@ logging.basicConfig(
 # tf.logging.set_verbosity(tf.logging.ERROR)
 path = 'data/processed/'
 tf.flags.DEFINE_float('learning_rate', 0.009, "initial learning rate")
-tf.flags.DEFINE_integer("num_layers", 2, "number of stacked LSTM cells")
-tf.flags.DEFINE_integer("embedding_dims", 50, "embedded size")
-tf.flags.DEFINE_float("keep_prob", 0.5, "keeping probability in dropout")
-tf.flags.DEFINE_float("lr_decay", 0.7, "learning rate decay")
-tf.flags.DEFINE_integer("batch_size", 200, "number of batches per epoch")
+tf.flags.DEFINE_integer('num_layers', 2, "number of stacked LSTM cells")
+tf.flags.DEFINE_integer('embedding_dims', 50, "embedded size")
+tf.flags.DEFINE_float('keep_prob', 0.5, "keeping probability in dropout")
+tf.flags.DEFINE_float('lr_decay', 0.7, "learning rate decay")
+tf.flags.DEFINE_integer('batch_size', 200, "number of batches per epoch")
+tf.flags.DEFINE_boolean('use GRU', True,
+                        'whether to use GRU instead of LSTM')
+tf.flags.DEFINE_integer('fact_size', 40, 'factor size if using factorized RNN')
 FLAGS = tf.flags.FLAGS
 
 
@@ -37,13 +40,15 @@ class Config(object):
         self.max_grad_norm = 5
         self.num_layers = FLAGS.num_layers  # number of stacked LSTM cells
         self.embedding_dims = FLAGS.embedding_dims  # embedded size
-        self.max_epoch = 50  # Number of epochs for iteration
+        self.max_epoch = 20  # Number of epochs for iteration
         self.keep_prob = FLAGS.keep_prob
         self.lr_decay = FLAGS.lr_decay
         self.batch_size = FLAGS.batch_size
         self.num_classes = 2
         self.vocab_size = 20000
         self.max_seq_len = 200
+        self.model = FLAGS.model
+        self.fact_size = FLAGS.fact_size
 
 
 def main(_):
@@ -52,8 +57,8 @@ def main(_):
                config.vocab_size)
 
     # create model
-    tb_log_dir = '/tmp/tb_logs/emb-size-{:d}_num-layers-{:d}_keep-prob-{:.2f}'.format(
-        FLAGS.embedding_dims, FLAGS.num_layers, FLAGS.keep_prob)
+    tb_log_dir = '/tmp/tb_logs/emb-size-{:d}_num-layers-{:d}_keep-prob-{:.2f}_{:d}'.format(
+        FLAGS.embedding_dims, FLAGS.num_layers, FLAGS.keep_prob, int(time.time()))
     logging.info('To visualize on tensorboard, run:\ntensorboard --logdir=%s' % tb_log_dir)
     logging.info('Model params: number of hidden layers: %d;'
                  ' number of units per layer: %d; dropout: %.2f.' % (

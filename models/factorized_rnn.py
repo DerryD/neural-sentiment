@@ -22,7 +22,8 @@ class FLSTMCell(RNNCell):
                  initializer=None,
                  num_proj=None,
                  forget_bias=1.0,
-                 activation=tanh):
+                 activation=tanh,
+                 reuse=None):
         """
         Initializes parameters of F-LSTM cell
         :param num_units: int, The number of units in the G-LSTM cell
@@ -43,6 +44,7 @@ class FLSTMCell(RNNCell):
         self._forget_bias = forget_bias
         self._activation = activation
         self._factor_size = factor_size
+        self._reuse = reuse
 
         assert (self._num_units > self._factor_size)
         if self._num_proj:
@@ -91,8 +93,9 @@ class FLSTMCell(RNNCell):
         input_size = inputs.get_shape().with_rank(2)[1]
         if input_size.value is None:
             raise ValueError("Could not infer input size from inputs.get_shape()[-1]")
-        with vs.variable_scope(scope or "flstm_cell",
-                               initializer=self._initializer):
+        with checked_scope(self, scope or "flstm_cell",
+                           initializer=self._initializer,
+                           reuse=self._reuse):
             # Factorization
             with vs.variable_scope("factor"):
                 # multiply with W1
@@ -135,7 +138,7 @@ class FGRUCell(RNNCell):
 
     def __call__(self, inputs, state, scope=None):
         """Gated recurrent unit (GRU) with nunits cells."""
-        with checked_scope(self, scope or "gru_cell", reuse=self._reuse):
+        with checked_scope(self, scope or "fgru_cell", reuse=self._reuse):
             with vs.variable_scope("gates"):  # Reset gate and update gate.
                 # We start with bias of 1.0 to not reset and not update.
                 with vs.variable_scope("factor"):
@@ -148,8 +151,8 @@ class FGRUCell(RNNCell):
                     num_or_size_splits=2,
                     axis=1)
             with vs.variable_scope("candidate"):
-                c = self._activation(linear([inputs, r * state],
-                                            self._num_units, True))
+                fact = linear([inputs, r * state], self._factor_size, False)
+                c = self._activation(linear(fact, self._num_units, True))
             new_h = u * state + (1 - u) * c
         return new_h, new_h
 

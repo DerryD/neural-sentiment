@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+from factorized_rnn import FLSTMCell, FGRUCell
 
 
 class SentimentInput(object):
@@ -108,10 +109,27 @@ class SentimentModel(object):
                     inputs, config.keep_prob)
 
         def rnn_cell():
-            return tf.contrib.rnn.LSTMCell(
-                    num_units=config.embedding_dims,
-                    reuse=tf.get_variable_scope().reuse)
-
+            if config.model == 'LSTM':
+                if config.fact_size:
+                    return FLSTMCell(
+                        num_units=config.embedding_dims,
+                        factor_size=config.fact_size,
+                        reuse=tf.get_variable_scope().reuse)
+                else:
+                    return tf.contrib.rnn.LSTMCell(
+                            num_units=config.embedding_dims,
+                            reuse=tf.get_variable_scope().reuse)
+            elif config.model == 'GRU':
+                if config.fact_size:
+                    return FGRUCell(
+                        num_units=config.embedding_dims,
+                        factor_size=config.fact_size,
+                        reuse=tf.get_variable_scope().reuse
+                    )
+                else:
+                    return tf.contrib.rnn.GRUCell(
+                        num_units=config.embedding_dims,
+                        reuse=tf.get_variable_scope().reuse)
         if is_training and config.keep_prob < 1:
             def attn_cell():
                 return tf.contrib.rnn.DropoutWrapper(
