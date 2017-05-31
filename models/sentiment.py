@@ -107,7 +107,7 @@ class SentimentModel(object):
                 inputs = tf.nn.dropout(
                     inputs, config.keep_prob)
 
-        def lstm_cell():
+        def rnn_cell():
             return tf.contrib.rnn.LSTMCell(
                     num_units=config.embedding_dims,
                     reuse=tf.get_variable_scope().reuse)
@@ -115,11 +115,10 @@ class SentimentModel(object):
         if is_training and config.keep_prob < 1:
             def attn_cell():
                 return tf.contrib.rnn.DropoutWrapper(
-                    lstm_cell(),
-                    input_keep_prob=config.keep_prob,   # comment it
+                    rnn_cell(),
                     output_keep_prob=config.keep_prob)
         else:
-            attn_cell = lstm_cell
+            attn_cell = rnn_cell
 
         if config.num_layers >= 2:
             cell = tf.contrib.rnn.MultiRNNCell(
