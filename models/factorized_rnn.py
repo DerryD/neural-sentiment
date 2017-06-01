@@ -143,9 +143,9 @@ class FGRUCell(RNNCell):
                 # We start with bias of 1.0 to not reset and not update.
                 with vs.variable_scope("factor"):
                     # multiply with W1
-                    fact = linear([inputs, state], self._factor_size, False)
+                    gate_fact = linear([inputs, state], self._factor_size, False)
                 value = sigmoid(linear(
-                    fact, 2 * self._num_units, True, 1.0))
+                    gate_fact, 2 * self._num_units, True, 1.0))
                 r, u = array_ops.split(
                     value=value,
                     num_or_size_splits=2,
@@ -153,8 +153,8 @@ class FGRUCell(RNNCell):
             with vs.variable_scope("candidate"):
                 if self._factor_size < 2./3 * self._num_units:
                     with vs.variable_scope("factor"):
-                        fact = linear([inputs, r * state], self._factor_size, False)
-                    c = self._activation(linear(fact, self._num_units, True))
+                        c_fact = linear([inputs, r * state], self._factor_size, False)
+                    c = self._activation(linear(c_fact, self._num_units, True))
                 else:
                     c = self._activation(linear([inputs, r * state],
                                                 self._num_units, True))

@@ -4,6 +4,13 @@ export PYTHONPATH="/home/dairui/workspace/neural-sentiment/:$PYTHONPATH"
 python -u train.py > /tmp/ns.log 2>&1 &
 tensorboard --logdir=/tmp/tb_logs
 rm -rf /tmp/tb_logs
+emb-size-60_num-layers-1_keep-prob-0.50
+```
+python train.py --embedding_dims=60 --num_layers=1 --keep_prob=0.5 --use_gru=False \
+    --fact_size=0 --learning_rate=0.03 --batch_size=100 --lr_decay=0.7 --max_epoch=50
+
+
+```
 """
 from six.moves import xrange
 import numpy as np
@@ -22,15 +29,16 @@ logging.basicConfig(
 )
 # tf.logging.set_verbosity(tf.logging.ERROR)
 path = 'data/processed/'
-tf.flags.DEFINE_float('learning_rate', 0.009, "initial learning rate")
-tf.flags.DEFINE_integer('num_layers', 2, "number of stacked LSTM cells")
-tf.flags.DEFINE_integer('embedding_dims', 50, "embedded size")
-tf.flags.DEFINE_float('keep_prob', 0.5, "keeping probability in dropout")
+tf.flags.DEFINE_float('learning_rate', 0.03, "initial learning rate")            # TODO: 0.009
+tf.flags.DEFINE_integer('num_layers', 1, "number of stacked LSTM cells")         # TODO: 2
+tf.flags.DEFINE_integer('embedding_dims', 60, "embedded size")                   # TODO: 50
+tf.flags.DEFINE_float('keep_prob', 0.5, "keeping probability in dropout")        # TODO: 0.5
 tf.flags.DEFINE_float('lr_decay', 0.7, "learning rate decay")
-tf.flags.DEFINE_integer('batch_size', 200, "number of batches per epoch")
-tf.flags.DEFINE_boolean('use_gru', False,
+tf.flags.DEFINE_integer('batch_size', 100, "number of batches per epoch")
+tf.flags.DEFINE_boolean('use_gru', False,                                        # TODO: True
                         'whether to use GRU instead of LSTM')
-tf.flags.DEFINE_integer('fact_size', 40, 'factor size if using factorized RNN')
+tf.flags.DEFINE_integer('fact_size', 0, 'factor size if using factorized RNN')   # TODO: 40
+tf.flags.DEFINE_integer('max_epoch', 20, 'number of epochs')
 FLAGS = tf.flags.FLAGS
 
 
@@ -40,7 +48,7 @@ class Config(object):
         self.max_grad_norm = 5
         self.num_layers = FLAGS.num_layers  # number of stacked LSTM cells
         self.embedding_dims = FLAGS.embedding_dims  # embedded size
-        self.max_epoch = 20  # Number of epochs for iteration
+        self.max_epoch = FLAGS.max_epoch  # Number of epochs for iteration
         self.keep_prob = FLAGS.keep_prob
         self.lr_decay = FLAGS.lr_decay
         self.batch_size = FLAGS.batch_size
@@ -57,8 +65,13 @@ def main(_):
                config.vocab_size)
 
     # create model
-    tb_log_dir = '/tmp/tb_logs/emb-size-{:d}_num-layers-{:d}_keep-prob-{:.2f}_{:d}'.format(
-        FLAGS.embedding_dims, FLAGS.num_layers, FLAGS.keep_prob, int(time.time()))
+    tb_log_dir = '/tmp/tb_logs/emb-{:d}_layers-{:d}_dropout-{:.2f}_epoch-{:d}'.format(
+        FLAGS.embedding_dims, FLAGS.num_layers, FLAGS.keep_prob, FLAGS.max_epoch)
+    if config.use_gru:
+        tb_log_dir += '_use-gru'
+    if config.fact_size:
+        tb_log_dir += '_fact-size-%d' % config.fact_size
+    tb_log_dir += '_%d' % int(time.time())
     logging.info('To visualize on tensorboard, run:\ntensorboard --logdir=%s' % tb_log_dir)
     logging.info('Model params: number of hidden layers: %d;'
                  ' number of units per layer: %d; dropout: %.2f.' % (
@@ -79,14 +92,17 @@ def main(_):
                  'number of batches per epoch: {1}.'.format(config.batch_size,
                                                             batches_per_epoch))
     with tf.Graph().as_default():
-        logging.info('creating model...')
+        logging.info('Creating model...')
         initializer = tf.random_uniform_initializer(-1, 1)
+        logging.info('Building training model...')
         with tf.name_scope('Train'):
             with tf.variable_scope('Model', reuse=None, initializer=initializer):
                 model = SentimentModel(config, sent_input, True)
+        logging.info('Building validation model...')
         with tf.name_scope('Valid'):
             with tf.variable_scope('Model', reuse=True, initializer=initializer):
                 m_valid = SentimentModel(config, sent_input, is_training=False)
+        logging.info('Initializing...')
         global_init = tf.global_variables_initializer()
         # sv = tf.train.Supervisor()  # logdir=tb_log_dir
         with tf.Session() as sess:
@@ -107,9 +123,11 @@ def main(_):
             step = 0
             logging.info('Training...')
             # starting at step 1 to prevent test set from running after first batch
-            for epoch in range(epoch_num):
-                for batch in range(batches_per_epoch):
+            for epoch in xrange(epoch_num):
+                for batch in xrange(batches_per_epoch):
                     step += 1
+                    # if step == 2:
+                    #     pass
                     # Get a batch and make a step.
                     start_time = time.time()
                     inputs, targets, seq_lengths = model.input_data.next_batch()
@@ -122,7 +140,7 @@ def main(_):
                     # Once in a while, we run evals.
                 # Print statistics for the previous epoch.
                 logging.info('Epoch [%d/%d]: learning rate %.7f, step-time %.2f, loss %.4f'
-                             % (epoch, epoch_num, sess.run(model.learning_rate),
+                             % (epoch + 1, epoch_num, sess.run(model.learning_rate),
                                 batch_time, train_loss))
                 # Decrease learning rate if no improvement was seen over last 3 times.
                 if len(previous_losses) > 2 and train_loss > max(previous_losses[-3:]):

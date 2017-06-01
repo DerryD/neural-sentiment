@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from factorized_rnn import FLSTMCell, FGRUCell
+# import math
 
 
 class SentimentInput(object):
@@ -90,7 +91,7 @@ class SentimentModel(object):
         # self.global_step = tf.Variable(0, trainable=False)
         self.max_seq_length = config.max_seq_len
         # seq_input: list of tensors, each tensor is size max_seq_length
-        # target: a list of values between 0 and 1 indicating target scores
+        # target: a list of values between 0 and 1 indicating target logits
         # seq_lengths:the early stop lengths of each input tensor
         self.seq_input = tf.placeholder(
             tf.int32, shape=[None, config.max_seq_len])
@@ -147,6 +148,26 @@ class SentimentModel(object):
         initial_state = cell.zero_state(config.batch_size, tf.float32)
         with tf.variable_scope('rnn'):
             rnn_input = tf.unstack(inputs, num=self.max_seq_length, axis=1)
+            # >>> lstm_state
+            # (
+            #     LSTMStateTuple(
+            #         c=<tf.Tensor 'Train/Model/rnn/rnn/cond_199/Merge_1:0'
+            #            shape=(batch_size, embedding_dims) dtype=float32>,
+            #         h=<tf.Tensor 'Train/Model/rnn/rnn/cond_199/Merge_2:0'
+            #            shape=(batch_size, embedding_dims) dtype=float32>
+            #      ),
+            #      LSTMStateTuple(
+            #         c=<tf.Tensor 'Train/Model/rnn/rnn/cond_199/Merge_3:0'
+            #            shape=(batch_size, embedding_dims) dtype=float32>,
+            #         h=<tf.Tensor 'Train/Model/rnn/rnn/cond_199/Merge_4:0'
+            #            shape=(batch_size, embedding_dims) dtype=float32>)
+            # )
+            #
+            # >>> gru_state
+            # (<tf.Tensor 'Train/Model/rnn/rnn/cond_199/Merge_1:0'
+            #   shape=(batch_size, embedding_dims) dtype=float32>,
+            #  <tf.Tensor 'Train/Model/rnn/rnn/cond_199/Merge_2:0'
+            #   shape=(batch_size, embedding_dims) dtype=float32>)
             rnn_output, rnn_state = tf.contrib.rnn.static_rnn(
                 cell, rnn_input,
                 initial_state=initial_state,
@@ -164,21 +185,38 @@ class SentimentModel(object):
                 initializer=tf.constant_initializer(0.1))
             # use constant initializer to avoid log zero
             # we use the cell memory state for information on sentence embedding
+
             if config.num_layers >= 2:
                 if config.use_gru:
-                    scores = tf.nn.xw_plus_b(rnn_state[-1], softmax_w, softmax_b)
+                    logits = tf.nn.xw_plus_b(rnn_state[-1], softmax_w, softmax_b)
                 else:
-                    scores = tf.nn.xw_plus_b(rnn_state[-1][0], softmax_w, softmax_b)
-                # scores = tf.nn.xw_plus_b(rnn_output[-1][0], softmax_w, softmax_b)
+                    # the last lstm layer, the state of c
+                    logits = tf.nn.xw_plus_b(rnn_state[-1][0], softmax_w, softmax_b)
+                # logits = tf.nn.xw_plus_b(rnn_output[-1][0], softmax_w, softmax_b)
             else:
-                scores = tf.nn.xw_plus_b(rnn_state[-1], softmax_w, softmax_b)
-                # scores = tf.nn.xw_plus_b(rnn_output[-1], softmax_w, softmax_b)
-            self.y = tf.nn.softmax(scores)
-            predictions = tf.argmax(scores, 1)
+                if config.use_gru:
+                    logits = tf.nn.xw_plus_b(rnn_state, softmax_w, softmax_b)
+                else:
+                    logits = tf.nn.xw_plus_b(rnn_state[-1], softmax_w, softmax_b)
+                # logits = tf.nn.xw_plus_b(rnn_output[-1], softmax_w, softmax_b)
+
+            # shape = [logits.get_shape()[0], 2]
+            # epsilon = tf.constant(value=1e-5, shape=shape)
+            # logits += epsilon
+
+            self.softmax = tf.nn.softmax(logits)
+            predictions = tf.argmax(logits, 1)
 
         with tf.variable_scope('loss'):
+
             loss = tf.nn.softmax_cross_entropy_with_logits(
-                logits=scores, labels=self.target)
+                logits=logits, labels=self.target)
+
+            # loss = -tf.reduce_sum(self.target * tf.log(tf.clip_by_value(self.softmax, 1e-5, 5.0)))
+
+            # log_softmax = tf.nn.log_softmax(logits)
+            # loss = -tf.reduce_sum(self.target * log_softmax, reduction_indices=[1])
+
             self._cost = tf.reduce_mean(loss)
 
         with tf.variable_scope('accuracy'):
@@ -230,8 +268,11 @@ class SentimentModel(object):
         if is_training:
             fetches = [self.cost, self.update, self.accuracy, self.merged]
         else:
-            fetches = [self.cost, self.y, self.accuracy, self.merged]
+            fetches = [self.cost, self.softmax, self.accuracy, self.merged]
         outputs = session.run(fetches, feed_dict)
+        # if math.isnan(outputs[0]):
+        #     import pdb
+        #     pdb.set_trace()
         return outputs
 
     def assign_lr(self, session, lr_value):

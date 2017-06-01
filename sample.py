@@ -34,7 +34,7 @@ def main():
                 model.dropout_keep_prob_lstm_input.name: model.dropout,
                 model.dropout_keep_prob_lstm_output.name: model.dropout
             }
-            output_feed = [model.y]
+            output_feed = [model.softmax]
             outputs = sess.run(output_feed, input_feed)
             score = np.argmax(outputs[0])
             probability = outputs[0].max(axis=1)[0]
