@@ -76,6 +76,53 @@ class SentimentInput(object):
         return batch_inputs, targets, seq_lengths
 
 
+class SentInput(object):
+    def __init__(self, config, data):
+        self.batch_size = config.batch_size
+        targets = data[:, -2]
+        one_hot = np.zeros((len(targets), 2))
+        one_hot[np.arange(len(targets)), targets] = 1
+        sequence_lengths = data[:, -1]
+        # tokenized text data
+        data = data[:, :-2]
+        # training data
+        self.data = data
+        # validation data
+        self.num_batches = len(self.data) // self.batch_size
+        cutoff = len(self.data) - (len(self.data) % self.batch_size)
+        # cut off data
+        self.data = self.data[:cutoff]
+        # sequence lengths
+        self.seq_len = sequence_lengths[:cutoff]
+        self.seq_len = np.split(self.seq_len, self.num_batches)
+        self.targets = one_hot[:cutoff]
+        self.targets = np.split(self.targets, self.num_batches)
+        self.data = np.split(self.data, self.num_batches)
+        self.batch_pointer = 0
+
+    def next_batch(self):
+        """
+        Get a random batch of data to preprocess for a step
+        not sure how efficient this is...
+
+        Input:
+        data: shuffled batch * n * m numpy array of data
+        train_data: flag indicating whether or not to increment batch pointer, in other
+            word whether to return the next training batch, or cross val data
+
+        Returns:
+        A numpy arrays for inputs, target, and seq_lengths
+
+        """
+        batch_inputs = self.data[self.batch_pointer]
+        targets = self.targets[self.batch_pointer]
+        seq_lengths = self.seq_len[self.batch_pointer]
+        self.batch_pointer += 1
+        self.batch_pointer = self.batch_pointer % len(
+            self.data)
+        return batch_inputs, targets, seq_lengths
+
+
 class SentimentModel(object):
     def __init__(self, config, data, is_training=True):
         """
@@ -197,7 +244,7 @@ class SentimentModel(object):
                 if config.use_gru:
                     logits = tf.nn.xw_plus_b(rnn_state, softmax_w, softmax_b)
                 else:
-                    logits = tf.nn.xw_plus_b(rnn_state[-1], softmax_w, softmax_b)
+                    logits = tf.nn.xw_plus_b(rnn_state[0], softmax_w, softmax_b)
                 # logits = tf.nn.xw_plus_b(rnn_output[-1], softmax_w, softmax_b)
 
             # shape = [logits.get_shape()[0], 2]

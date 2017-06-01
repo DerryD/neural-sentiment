@@ -4,10 +4,31 @@ export PYTHONPATH="/home/dairui/workspace/neural-sentiment/:$PYTHONPATH"
 python -u train.py > /tmp/ns.log 2>&1 &
 tensorboard --logdir=/tmp/tb_logs
 rm -rf /tmp/tb_logs
-emb-size-60_num-layers-1_keep-prob-0.50
 ```
+# 2lstm # 0.875
+python train.py --embedding_dims=50 --num_layers=2 --keep_prob=0.5 --use_gru=False \
+    --fact_size=0 --learning_rate=0.009 --batch_size=200 --lr_decay=0.7 \
+    --max_epoch=20 > /tmp/2lstm.log 2>&1 &
+
+# 2gru # 0.511 running
+python train.py --embedding_dims=50 --num_layers=2 --keep_prob=0.5 --use_gru=True \
+    --fact_size=0 --learning_rate=0.007 --batch_size=200 --lr_decay=0.7 \
+    --max_epoch=50 > /tmp/2gru.log 2>&1 &
+
+# 1lstm # 0.798
 python train.py --embedding_dims=60 --num_layers=1 --keep_prob=0.5 --use_gru=False \
-    --fact_size=0 --learning_rate=0.03 --batch_size=100 --lr_decay=0.7 --max_epoch=50
+    --fact_size=0 --learning_rate=0.03 --batch_size=100 --lr_decay=0.7 \
+    --max_epoch=50 > /tmp/1lstm.log 2>&1 &
+
+# 1gru # 0.502
+python train.py --embedding_dims=60 --num_layers=1 --keep_prob=0.5 --use_gru=True \
+    --fact_size=0 --learning_rate=0.01 --batch_size=100 --lr_decay=0.7 \
+    --max_epoch=50 > /tmp/1gru.log 2>&1 &
+
+# 2flstm # nan
+python train.py --embedding_dims=50 --num_layers=2 --keep_prob=0.5 --use_gru=False \
+    --fact_size=40 --learning_rate=0.0001 --batch_size=50 --lr_decay=0.7 \
+    --max_epoch=50 > /tmp/2flstm.log 2>&1 &
 
 
 ```
@@ -29,16 +50,16 @@ logging.basicConfig(
 )
 # tf.logging.set_verbosity(tf.logging.ERROR)
 path = 'data/processed/'
-tf.flags.DEFINE_float('learning_rate', 0.03, "initial learning rate")            # TODO: 0.009
+tf.flags.DEFINE_float('learning_rate', 0.0003, "initial learning rate")            # TODO: 0.009
 tf.flags.DEFINE_integer('num_layers', 1, "number of stacked LSTM cells")         # TODO: 2
 tf.flags.DEFINE_integer('embedding_dims', 60, "embedded size")                   # TODO: 50
 tf.flags.DEFINE_float('keep_prob', 0.5, "keeping probability in dropout")        # TODO: 0.5
 tf.flags.DEFINE_float('lr_decay', 0.7, "learning rate decay")
 tf.flags.DEFINE_integer('batch_size', 100, "number of batches per epoch")
-tf.flags.DEFINE_boolean('use_gru', False,                                        # TODO: True
+tf.flags.DEFINE_boolean('use_gru', True,                                        # TODO: True
                         'whether to use GRU instead of LSTM')
 tf.flags.DEFINE_integer('fact_size', 0, 'factor size if using factorized RNN')   # TODO: 40
-tf.flags.DEFINE_integer('max_epoch', 20, 'number of epochs')
+tf.flags.DEFINE_integer('max_epoch', 50, 'number of epochs')                     # TODO: 20
 FLAGS = tf.flags.FLAGS
 
 
