@@ -19,6 +19,10 @@ python train.py --embedding_dims=50 --num_layers=2 --keep_prob=0.5 --use_gru=Tru
     --fact_size=0 --learning_rate=0.0007 --batch_size=200 --lr_decay=0.7 \
     --max_epoch=50 > /tmp/2gru.log 2>&1 &
 
+python train.py --embedding_dims=50 --num_layers=2 --keep_prob=0.5 --use_gru=True \
+    --fact_size=0 --learning_rate=0.009 --batch_size=200 --lr_decay=0.7 \
+    --max_epoch=20 > /tmp/2gru.log 2>&1 &
+
 ###### 1lstm # 0.825
 python train.py --embedding_dims=60 --num_layers=1 --keep_prob=0.5 --use_gru=False \
     --fact_size=0 --learning_rate=0.03 --batch_size=100 --lr_decay=0.7 \

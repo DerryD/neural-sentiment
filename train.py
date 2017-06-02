@@ -44,7 +44,7 @@ class Config(object):
         self.batch_size = FLAGS.batch_size
         self.num_classes = 2
         self.vocab_size = 20000
-        self.max_seq_len = 200
+        self.max_seq_len = 80
         self.use_gru = FLAGS.use_gru
         self.fact_size = FLAGS.fact_size
 
@@ -118,8 +118,8 @@ def main(_):
             logging.info('Maximum number of epochs to train for: '
                          '{0}; Batch size: {0}; Starting learning '
                          'rate: {0}; Learning rate decay factor: '
-                         '{0}'.format((epoch_num, config.batch_size,
-                                       config.learning_rate, config.lr_decay)))
+                         '{0}'.format(epoch_num, config.batch_size,
+                                      config.learning_rate, config.lr_decay))
             batch_time, train_loss = 0.0, 0.0
             previous_losses = []
             # Total number of batches to pass through.
