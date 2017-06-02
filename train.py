@@ -71,7 +71,7 @@ def main(_):
     logging.info("Vocab size is: {0}".format(vocab_size))
     infile = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
     # randomize data order
-    print infile
+    logging.info('Loading files: %s' % str(infile))
     data = np.vstack((np.load(os.path.join(path, f)) for f in infile))
     np.random.shuffle(data)
     # data = data[:1000]
@@ -164,9 +164,10 @@ def main(_):
                 norm_valid_accuracy = val_acc / m_valid.input_data.num_batches
                 # noinspection PyUnboundLocalVariable
                 writer.add_summary(valid_summary, step)
-                logging.info('Avg valid loss: {0}, Avg valid accuracy: {1}.'.format(
+                logging.info('Avg valid loss: {0}, Avg valid accuracy: {1}'.format(
                     norm_valid_loss, norm_valid_accuracy))
                 train_loss = 0.0
+            logging.info('Testing...')
             test_loss, test_acc = 0.0, 0.0
             for _ in xrange(m_test.input_data.num_batches):
                 inputs, targets, seq_lengths = m_test.input_data.next_batch()
@@ -176,7 +177,7 @@ def main(_):
                 test_acc += acc
             norm_test_loss = test_loss / m_test.input_data.num_batches
             norm_test_accuracy = test_acc / m_test.input_data.num_batches
-            logging.info('Avg Test Loss: {0}, Avg Test Accuracy: {1}'.format(
+            logging.info('Avg test loss: {0}, Avg test accuracy: {1}'.format(
                 norm_test_loss, norm_test_accuracy))
 
 

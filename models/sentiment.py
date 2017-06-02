@@ -1,79 +1,78 @@
 import tensorflow as tf
 import numpy as np
 from factorized_rnn import FLSTMCell, FGRUCell
-# import math
 
 
-class SentimentInput(object):
-    def __init__(self, config, data, validation_split=0.25):
-        self.batch_size = config.batch_size
-        training_split = 1 - validation_split
-        train_start_end_index = [0, int(training_split * len(data))]
-        valid_start_end_index = [int(training_split * len(data)) + 1, len(data) - 1]
-        targets = data[:, -2]
-        one_hot = np.zeros((len(targets), 2))
-        one_hot[np.arange(len(targets)), targets] = 1
-        sequence_lengths = data[:, -1]
-        # tokenized text data
-        data = data[:, :-2]
-        # training data
-        self.train_data = data[train_start_end_index[0]: train_start_end_index[1]]
-        # validation data
-        self.valid_data = data[valid_start_end_index[0]:valid_start_end_index[1]]
-        self.num_train_batches = len(self.train_data) // self.batch_size
-        self.num_valid_batches = len(self.valid_data) // self.batch_size
-        train_cutoff = len(self.train_data) - (len(self.train_data) % self.batch_size)
-        valid_cutoff = len(self.valid_data) - (len(self.valid_data) % self.batch_size)
-        # cut off data
-        self.train_data = self.train_data[:train_cutoff]
-        self.valid_data = self.valid_data[:valid_cutoff]
-        # sequence lengths
-        self.train_sequence_lengths = \
-            sequence_lengths[train_start_end_index[0]: train_start_end_index[1]][:train_cutoff]
-        self.train_sequence_lengths = np.split(self.train_sequence_lengths, self.num_train_batches)
-        self.train_targets = one_hot[train_start_end_index[0]: train_start_end_index[1]][:train_cutoff]
-        self.train_targets = np.split(self.train_targets, self.num_train_batches)
-        self.train_data = np.split(self.train_data, self.num_train_batches)
-
-        print "Validation size is: {0}, splitting into {1} batches".format(
-            len(self.valid_data), self.num_valid_batches)
-        self.valid_data = np.split(self.valid_data, self.num_valid_batches)
-        self.valid_targets = one_hot[valid_start_end_index[0]: valid_start_end_index[1]][:valid_cutoff]
-        self.valid_targets = np.split(self.valid_targets, self.num_valid_batches)
-        self.valid_seq_len = \
-            sequence_lengths[valid_start_end_index[0]: valid_start_end_index[1]][:valid_cutoff]
-        self.valid_seq_len = np.split(self.valid_seq_len, self.num_valid_batches)
-        self.valid_batch_pointer = 0
-        self.train_batch_pointer = 0
-
-    def next_batch(self, is_training=True):
-        """
-        Get a random batch of data to preprocess for a step
-        not sure how efficient this is...
-
-        Input:
-        data: shuffled batch * n * m numpy array of data
-        train_data: flag indicating whether or not to increment batch pointer, in other
-            word whether to return the next training batch, or cross val data
-
-        Returns:
-        A numpy arrays for inputs, target, and seq_lengths
-
-        """
-        if is_training:
-            batch_inputs = self.train_data[self.train_batch_pointer]
-            targets = self.train_targets[self.train_batch_pointer]
-            seq_lengths = self.train_sequence_lengths[self.train_batch_pointer]
-            self.train_batch_pointer += 1
-            self.train_batch_pointer = self.train_batch_pointer % len(
-                self.train_data)
-        else:
-            batch_inputs = self.valid_data[self.valid_batch_pointer]
-            targets = self.valid_targets[self.valid_batch_pointer]
-            seq_lengths = self.valid_seq_len[self.valid_batch_pointer]
-            self.valid_batch_pointer += 1
-            self.valid_batch_pointer = self.valid_batch_pointer % len(self.valid_data)
-        return batch_inputs, targets, seq_lengths
+# class SentimentInput(object):
+#     def __init__(self, config, data, validation_split=0.25):
+#         self.batch_size = config.batch_size
+#         training_split = 1 - validation_split
+#         train_start_end_index = [0, int(training_split * len(data))]
+#         valid_start_end_index = [int(training_split * len(data)) + 1, len(data) - 1]
+#         targets = data[:, -2]
+#         one_hot = np.zeros((len(targets), 2))
+#         one_hot[np.arange(len(targets)), targets] = 1
+#         sequence_lengths = data[:, -1]
+#         # tokenized text data
+#         data = data[:, :-2]
+#         # training data
+#         self.train_data = data[train_start_end_index[0]: train_start_end_index[1]]
+#         # validation data
+#         self.valid_data = data[valid_start_end_index[0]:valid_start_end_index[1]]
+#         self.num_train_batches = len(self.train_data) // self.batch_size
+#         self.num_valid_batches = len(self.valid_data) // self.batch_size
+#         train_cutoff = len(self.train_data) - (len(self.train_data) % self.batch_size)
+#         valid_cutoff = len(self.valid_data) - (len(self.valid_data) % self.batch_size)
+#         # cut off data
+#         self.train_data = self.train_data[:train_cutoff]
+#         self.valid_data = self.valid_data[:valid_cutoff]
+#         # sequence lengths
+#         self.train_sequence_lengths = \
+#             sequence_lengths[train_start_end_index[0]: train_start_end_index[1]][:train_cutoff]
+#         self.train_sequence_lengths = np.split(self.train_sequence_lengths, self.num_train_batches)
+#         self.train_targets = one_hot[train_start_end_index[0]: train_start_end_index[1]][:train_cutoff]
+#         self.train_targets = np.split(self.train_targets, self.num_train_batches)
+#         self.train_data = np.split(self.train_data, self.num_train_batches)
+#
+#         print "Validation size is: {0}, splitting into {1} batches".format(
+#             len(self.valid_data), self.num_valid_batches)
+#         self.valid_data = np.split(self.valid_data, self.num_valid_batches)
+#         self.valid_targets = one_hot[valid_start_end_index[0]: valid_start_end_index[1]][:valid_cutoff]
+#         self.valid_targets = np.split(self.valid_targets, self.num_valid_batches)
+#         self.valid_seq_len = \
+#             sequence_lengths[valid_start_end_index[0]: valid_start_end_index[1]][:valid_cutoff]
+#         self.valid_seq_len = np.split(self.valid_seq_len, self.num_valid_batches)
+#         self.valid_batch_pointer = 0
+#         self.train_batch_pointer = 0
+#
+#     def next_batch(self, is_training=True):
+#         """
+#         Get a random batch of data to preprocess for a step
+#         not sure how efficient this is...
+#
+#         Input:
+#         data: shuffled batch * n * m numpy array of data
+#         train_data: flag indicating whether or not to increment batch pointer, in other
+#             word whether to return the next training batch, or cross val data
+#
+#         Returns:
+#         A numpy arrays for inputs, target, and seq_lengths
+#
+#         """
+#         if is_training:
+#             batch_inputs = self.train_data[self.train_batch_pointer]
+#             targets = self.train_targets[self.train_batch_pointer]
+#             seq_lengths = self.train_sequence_lengths[self.train_batch_pointer]
+#             self.train_batch_pointer += 1
+#             self.train_batch_pointer = self.train_batch_pointer % len(
+#                 self.train_data)
+#         else:
+#             batch_inputs = self.valid_data[self.valid_batch_pointer]
+#             targets = self.valid_targets[self.valid_batch_pointer]
+#             seq_lengths = self.valid_seq_len[self.valid_batch_pointer]
+#             self.valid_batch_pointer += 1
+#             self.valid_batch_pointer = self.valid_batch_pointer % len(self.valid_data)
+#         return batch_inputs, targets, seq_lengths
 
 
 class SentInput(object):
