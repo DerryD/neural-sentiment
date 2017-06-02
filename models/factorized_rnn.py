@@ -105,8 +105,7 @@ class FLSTMCell(RNNCell):
             # i = input_gate, j = new_input, f = forget_gate, o = output_gate
             i, j, f, o = array_ops.split(value=concat, num_or_size_splits=4, axis=1)
 
-        c = sigmoid(
-            f + self._forget_bias) * c_prev + sigmoid(i) * tanh(j)
+        c = sigmoid(f + self._forget_bias) * c_prev + sigmoid(i) * tanh(j)
         m = sigmoid(o) * self._activation(c)
 
         if self._num_proj is not None:

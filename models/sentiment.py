@@ -118,8 +118,7 @@ class SentInput(object):
         targets = self.targets[self.batch_pointer]
         seq_lengths = self.seq_len[self.batch_pointer]
         self.batch_pointer += 1
-        self.batch_pointer = self.batch_pointer % len(
-            self.data)
+        self.batch_pointer = self.batch_pointer % len(self.data)
         return batch_inputs, targets, seq_lengths
 
 
@@ -215,7 +214,8 @@ class SentimentModel(object):
             #   shape=(batch_size, embedding_dims) dtype=float32>,
             #  <tf.Tensor 'Train/Model/rnn/rnn/cond_199/Merge_2:0'
             #   shape=(batch_size, embedding_dims) dtype=float32>)
-            rnn_output, rnn_state = tf.contrib.rnn.static_rnn(
+            # each input leads to an output
+            rnn_outputs, rnn_state = tf.contrib.rnn.static_rnn(
                 cell, rnn_input,
                 initial_state=initial_state,
                 sequence_length=self.seq_lengths,
@@ -235,17 +235,18 @@ class SentimentModel(object):
 
             if config.num_layers >= 2:
                 if config.use_gru:
-                    logits = tf.nn.xw_plus_b(rnn_state[-1], softmax_w, softmax_b)
+                    # logits = tf.nn.xw_plus_b(rnn_state[-1], softmax_w, softmax_b)
+                    logits = tf.nn.xw_plus_b(rnn_outputs[-1], softmax_w, softmax_b)
                 else:
                     # the last lstm layer, the state of c
                     logits = tf.nn.xw_plus_b(rnn_state[-1][0], softmax_w, softmax_b)
-                # logits = tf.nn.xw_plus_b(rnn_output[-1][0], softmax_w, softmax_b)
             else:
                 if config.use_gru:
-                    logits = tf.nn.xw_plus_b(rnn_state, softmax_w, softmax_b)
+                    # logits = tf.nn.xw_plus_b(rnn_state, softmax_w, softmax_b)
+                    logits = tf.nn.xw_plus_b(rnn_outputs[-1], softmax_w, softmax_b)
                 else:
+                    # the state of c is the first element of LSTMTuple(c, h)
                     logits = tf.nn.xw_plus_b(rnn_state[0], softmax_w, softmax_b)
-                # logits = tf.nn.xw_plus_b(rnn_output[-1], softmax_w, softmax_b)
 
             # shape = [logits.get_shape()[0], 2]
             # epsilon = tf.constant(value=1e-5, shape=shape)
