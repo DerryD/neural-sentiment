@@ -15,6 +15,10 @@ python train.py --embedding_dims=50 --num_layers=2 --keep_prob=0.5 --use_gru=Tru
     --fact_size=0 --learning_rate=0.007 --batch_size=200 --lr_decay=0.7 \
     --max_epoch=50 > /tmp/2gru.log 2>&1 &
 
+python train.py --embedding_dims=50 --num_layers=2 --keep_prob=0.5 --use_gru=True \
+    --fact_size=0 --learning_rate=0.0007 --batch_size=200 --lr_decay=0.7 \
+    --max_epoch=50 > /tmp/2gru.log 2>&1 &
+
 ###### 1lstm # 0.825
 python train.py --embedding_dims=60 --num_layers=1 --keep_prob=0.5 --use_gru=False \
     --fact_size=0 --learning_rate=0.03 --batch_size=100 --lr_decay=0.7 \
@@ -23,7 +27,7 @@ python train.py --embedding_dims=60 --num_layers=1 --keep_prob=0.5 --use_gru=Fal
 # 0.637
 python train.py --embedding_dims=60 --num_layers=1 --keep_prob=0.5 --use_gru=False \
     --fact_size=0 --learning_rate=0.03 --batch_size=50 --lr_decay=0.7 \
-    --max_epoch=50 > /tmp/1lstm.log 2>&1 &    # new run
+    --max_epoch=50 > /tmp/1lstm.log 2>&1 &
 
 ###### 1gru # 0.502
 python train.py --embedding_dims=60 --num_layers=1 --keep_prob=0.5 --use_gru=True \
@@ -35,7 +39,7 @@ python train.py --embedding_dims=60 --num_layers=1 --keep_prob=0.5 --use_gru=Tru
     --fact_size=0 --learning_rate=0.002 --batch_size=100 --lr_decay=0.7 \
     --max_epoch=50 > /tmp/1gru.log 2>&1 &
 
-#
+# 0.5
 python train.py --embedding_dims=60 --num_layers=1 --keep_prob=0.5 --use_gru=True \
     --fact_size=0 --learning_rate=0.00003 --batch_size=100 --lr_decay=0.7 \
     --max_epoch=50 > /tmp/1gru.log 2>&1 &
@@ -64,4 +68,6 @@ python train.py --embedding_dims=60 --num_layers=1 --keep_prob=0.5 --use_gru=Fal
 python train.py --embedding_dims=60 --num_layers=1 --keep_prob=0.5 --use_gru=False \
     --fact_size=50 --learning_rate=0.0005 --batch_size=100 --lr_decay=0.7 \
     --max_epoch=50 > /tmp/1flstm.log 2>&1 &
+
+
 ```

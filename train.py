@@ -8,7 +8,7 @@ import os
 import time
 import tensorflow as tf
 from utils.data_processor import build_data
-from models.sentiment import SentimentModel, SentimentInput
+from models.sentiment import SentimentModel, SentInput
 from utils.vocab_mapping import VocabMapping
 # import crash_on_ipy
 import logging
@@ -25,7 +25,7 @@ tf.flags.DEFINE_integer('embedding_dims', 60, "embedded size")                  
 tf.flags.DEFINE_float('keep_prob', 0.5, "keeping probability in dropout")        # TODO: 0.5
 tf.flags.DEFINE_float('lr_decay', 0.7, "learning rate decay")
 tf.flags.DEFINE_integer('batch_size', 100, "number of batches per epoch")
-tf.flags.DEFINE_boolean('use_gru', True,                                        # TODO: True
+tf.flags.DEFINE_boolean('use_gru', False,                                        # TODO: True
                         'whether to use GRU instead of LSTM')
 tf.flags.DEFINE_integer('fact_size', 0, 'factor size if using factorized RNN')   # TODO: 40
 tf.flags.DEFINE_integer('max_epoch', 50, 'number of epochs')                     # TODO: 20
@@ -75,9 +75,18 @@ def main(_):
     data = np.vstack((np.load(os.path.join(path, f)) for f in infile))
     np.random.shuffle(data)
     # data = data[:1000]
+    n_samples = len(data)
+    test_count = int(n_samples * 0.2)
+    test_data = data[:test_count]
+    train_data = data[test_count:]
+    valid_count = int(n_samples * 0.2)
+    valid_data = train_data[:valid_count]
+    train_data = train_data[valid_count:]
     logging.info('Shape of data: %s' % str(data.shape))
-    sent_input = SentimentInput(config, data)
-    batches_per_epoch = sent_input.num_train_batches
+    train_input = SentInput(config, train_data)
+    valid_input = SentInput(config, valid_data)
+    test_input = SentInput(config, test_data)
+    batches_per_epoch = train_input.num_batches
     logging.info('Number of training examples per batch: {0}; '
                  'number of batches per epoch: {1}.'.format(config.batch_size,
                                                             batches_per_epoch))
@@ -87,11 +96,14 @@ def main(_):
         logging.info('Building training model...')
         with tf.name_scope('Train'):
             with tf.variable_scope('Model', reuse=None, initializer=initializer):
-                model = SentimentModel(config, sent_input, True)
+                model = SentimentModel(config, train_input, True)
         logging.info('Building validation model...')
         with tf.name_scope('Valid'):
             with tf.variable_scope('Model', reuse=True, initializer=initializer):
-                m_valid = SentimentModel(config, sent_input, is_training=False)
+                m_valid = SentimentModel(config, valid_input, is_training=False)
+        with tf.name_scope('Test'):
+            with tf.variable_scope('Model', reuse=True, initializer=initializer):
+                m_test = SentimentModel(config, test_input, is_training=False)
         logging.info('Initializing...')
         global_init = tf.global_variables_initializer()
         # sv = tf.train.Supervisor()  # logdir=tb_log_dir
@@ -103,10 +115,11 @@ def main(_):
             logging.info('Model creation completed.')
             # train model and save to checkpoint
             epoch_num = config.max_epoch
-            print 'Maximum number of epochs to train for: {0}'.format(epoch_num)
-            print 'Batch size: {0}'.format(config.batch_size)
-            print 'Starting learning rate: {0}'.format(config.learning_rate)
-            print 'Learning rate decay factor: {0}'.format(config.lr_decay)
+            logging.info('Maximum number of epochs to train for: '
+                         '{0}; Batch size: {0}; Starting learning '
+                         'rate: {0}; Learning rate decay factor: '
+                         '{0}'.format((epoch_num, config.batch_size,
+                                       config.learning_rate, config.lr_decay)))
             batch_time, train_loss = 0.0, 0.0
             previous_losses = []
             # Total number of batches to pass through.
@@ -141,19 +154,30 @@ def main(_):
                 # Save checkpoint and zero timer and loss.
                 batch_time, val_loss, val_acc = 0.0, 0.0, 0.0
                 # Run evals on test set and print their accuracy.
-                for _ in xrange(m_valid.input_data.num_valid_batches):
-                    inputs, targets, seq_lengths = m_valid.input_data.next_batch(False)
+                for _ in xrange(m_valid.input_data.num_batches):
+                    inputs, targets, seq_lengths = m_valid.input_data.next_batch()
                     valid_loss, _, valid_accuracy, valid_summary = m_valid.run_batch(
                         sess, inputs, targets, seq_lengths, False)
                     val_loss += valid_loss
                     val_acc += valid_accuracy
-                norm_valid_loss = val_loss / m_valid.input_data.num_valid_batches
-                norm_valid_accuracy = val_acc / m_valid.input_data.num_valid_batches
+                norm_valid_loss = val_loss / m_valid.input_data.num_batches
+                norm_valid_accuracy = val_acc / m_valid.input_data.num_batches
                 # noinspection PyUnboundLocalVariable
                 writer.add_summary(valid_summary, step)
-                logging.info('Avg Test Loss: {0}, Avg Test Accuracy: {1}'.format(
+                logging.info('Avg valid loss: {0}, Avg valid accuracy: {1}.'.format(
                     norm_valid_loss, norm_valid_accuracy))
                 train_loss = 0.0
+            test_loss, test_acc = 0.0, 0.0
+            for _ in xrange(m_test.input_data.num_batches):
+                inputs, targets, seq_lengths = m_test.input_data.next_batch()
+                loss, _, acc, _ = m_test.run_batch(
+                    sess, inputs, targets, seq_lengths, False)
+                test_loss += loss
+                test_acc += acc
+            norm_test_loss = test_loss / m_test.input_data.num_batches
+            norm_test_accuracy = test_acc / m_test.input_data.num_batches
+            logging.info('Avg Test Loss: {0}, Avg Test Accuracy: {1}'.format(
+                norm_test_loss, norm_test_accuracy))
 
 
 if __name__ == '__main__':

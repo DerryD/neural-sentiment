@@ -126,7 +126,7 @@ class SentimentModel(object):
     def __init__(self, config, data, is_training=True):
         """
         :type config: Config
-        :type data: SentimentInput
+        :type data: SentInput
         :type is_training: bool
         """
         self.input_data = data
@@ -235,15 +235,15 @@ class SentimentModel(object):
 
             if config.num_layers >= 2:
                 if config.use_gru:
-                    # logits = tf.nn.xw_plus_b(rnn_state[-1], softmax_w, softmax_b)
-                    logits = tf.nn.xw_plus_b(rnn_outputs[-1], softmax_w, softmax_b)
+                    logits = tf.nn.xw_plus_b(rnn_state[-1], softmax_w, softmax_b)
+                    # logits = tf.nn.xw_plus_b(rnn_outputs[-1], softmax_w, softmax_b)
                 else:
                     # the last lstm layer, the state of c
                     logits = tf.nn.xw_plus_b(rnn_state[-1][0], softmax_w, softmax_b)
             else:
                 if config.use_gru:
-                    # logits = tf.nn.xw_plus_b(rnn_state, softmax_w, softmax_b)
-                    logits = tf.nn.xw_plus_b(rnn_outputs[-1], softmax_w, softmax_b)
+                    logits = tf.nn.xw_plus_b(rnn_state, softmax_w, softmax_b)
+                    # logits = tf.nn.xw_plus_b(rnn_outputs[-1], softmax_w, softmax_b)
                 else:
                     # the state of c is the first element of LSTMTuple(c, h)
                     logits = tf.nn.xw_plus_b(rnn_state[0], softmax_w, softmax_b)
